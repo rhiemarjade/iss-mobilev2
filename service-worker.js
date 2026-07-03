@@ -1,4 +1,4 @@
-const CACHE_NAME = "iss-mobile-pwa-v2";
+const CACHE_NAME = "iss-mobile-pwa-v3-comments2";
 const APP_SHELL = [
     "./",
     "./index.html",

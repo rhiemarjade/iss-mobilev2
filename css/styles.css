@@ -422,6 +422,33 @@ input:focus, select:focus, textarea:focus {
     padding: 8px 0;
 }
 .grade-edit-row label { margin: 0; }
+.grade-input-wrap {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+.grade-input-wrap input:disabled {
+    background: #f3f5fa;
+    color: #475569;
+    opacity: 1;
+}
+.grade-correction-mini-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: #fff7ed;
+    color: var(--warning);
+    border: 1px solid #fed7aa;
+    font-weight: 900;
+    font-size: 17px;
+}
+.grade-lock-hint {
+    min-width: 42px;
+    color: var(--muted);
+    font-size: 11px;
+    text-align: center;
+}
 .action-row {
     display: grid;
     grid-template-columns: 1fr 1fr;

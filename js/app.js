@@ -251,11 +251,26 @@ function canUseClasses() {
 }
 
 function canUseGradeCorrections() {
-    return Boolean(canUseLoads() || canUseAdvisory() || isManagement());
+    return Boolean(canUseLoads() || isManagement());
 }
 
 function canReviewGradeCorrections() {
     return isManagement();
+}
+
+function loadKey(classId, subjectId) {
+    return `${clean(classId)}|${clean(subjectId)}`;
+}
+
+function teacherLoadKeys() {
+    return new Set((state.loads || [])
+        .filter((load) => clean(load.class_id) && clean(load.subject_id))
+        .map((load) => loadKey(load.class_id, load.subject_id)));
+}
+
+function correctionMatchesTeacherLoad(row, keys = teacherLoadKeys()) {
+    if (!row || !keys.size) return false;
+    return keys.has(loadKey(row.class_id, row.subject_id));
 }
 
 function canUsePl() {
@@ -496,19 +511,37 @@ function gradeEncodingOpen(row) {
     return row?.grade_encoding_open === true || row?.grade_encoding_open === "true";
 }
 
-function gradeInputAllowed(row, period) {
-    if (!gradeVisible(row, period)) return false;
-    if (!gradeEncodingOpen(row)) return false;
-    if (Number(period) > activeTerm()) return false;
+function activeTermForGradeRow(row) {
+    const term = Number(row?.active_quarter || activeTerm());
+    return Math.max(1, Math.min(3, Number.isFinite(term) ? term : 1));
+}
+
+function periodCanEncode(row, period) {
     return row?.[`q${period}_can_encode`] === true || row?.[`q${period}_can_encode`] === "true";
 }
 
+function gradeInputAllowed(row, period) {
+    const currentTerm = activeTermForGradeRow(row);
+    const periodNumber = Number(period);
+    const existingValue = gradeValue(row, periodNumber);
+
+    if (!gradeVisible(row, periodNumber)) return false;
+    if (!gradeEncodingOpen(row)) return false;
+    if (!periodCanEncode(row, periodNumber)) return false;
+    if (periodNumber > currentTerm) return false;
+    if (periodNumber === currentTerm) return true;
+    if (periodNumber < currentTerm && existingValue === "") return true;
+    return false;
+}
+
 function canRequestGradeCorrectionFor(row, period) {
-    if (!row || !period) return false;
-    if (!gradeVisible(row, period)) return false;
-    if (Number(period) > activeTerm()) return false;
-    if (!gradeValue(row, period)) return false;
-    return !gradeInputAllowed(row, period) && (row?.[`q${period}_can_encode`] !== false);
+    const periodNumber = Number(period);
+    if (!row || !periodNumber) return false;
+    if (!gradeVisible(row, periodNumber)) return false;
+    if (!gradeEncodingOpen(row)) return false;
+    if (!periodCanEncode(row, periodNumber)) return false;
+    if (!gradeValue(row, periodNumber)) return false;
+    return !gradeInputAllowed(row, periodNumber);
 }
 
 async function openLoad(load) {
@@ -557,16 +590,24 @@ function openGradeSheet(row) {
     $("gradeSheetBody").innerHTML = [1, 2, 3].map((period) => {
         const value = gradeValue(row, period);
         const editable = gradeInputAllowed(row, period);
+        const requestable = canRequestGradeCorrectionFor(row, period);
+        const lockHint = requestable ? "Locked, request correction" : editable ? "Editable" : "Locked";
         return `
             <div class="grade-edit-row">
                 <label>T${period}</label>
-                <input id="gradeEditT${period}" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(value)}" data-original="${escapeHtml(value)}" ${editable ? "" : "disabled"}>
+                <div class="grade-input-wrap">
+                    <input id="gradeEditT${period}" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(value)}" data-original="${escapeHtml(value)}" aria-label="Term ${period} grade" ${editable ? "" : "disabled"}>
+                    ${requestable ? `<button type="button" class="grade-correction-mini-btn" data-correction-term="${period}" title="Request correction" aria-label="Request correction for Term ${period}">✎</button>` : `<span class="grade-lock-hint">${escapeHtml(lockHint)}</span>`}
+                </div>
             </div>
         `;
     }).join("");
+    $("gradeSheetBody").querySelectorAll("[data-correction-term]").forEach((button) => {
+        button.addEventListener("click", () => openCorrectionRequestSheet(Number(button.dataset.correctionTerm || 0)));
+    });
     const hasEditable = [1, 2, 3].some((period) => gradeInputAllowed(row, period));
     $("saveSingleGradeBtn").classList.toggle("hidden", !hasEditable);
-    $("openGradeCorrectionRequestBtn").classList.toggle("hidden", !state.correctionEligibleTerms.length);
+    $("openGradeCorrectionRequestBtn").classList.add("hidden");
     $("gradeSheet").classList.remove("hidden");
 }
 
@@ -609,14 +650,18 @@ async function saveSingleGrade() {
     await openLoad(state.selectedLoad);
 }
 
-function openCorrectionRequestSheet() {
+function openCorrectionRequestSheet(preferredTerm = null) {
     const row = state.selectedGradeRow;
-    if (!row || !state.correctionEligibleTerms.length) return;
+    const preferred = Number(preferredTerm || 0);
+    const eligibleTerms = preferred && state.correctionEligibleTerms.includes(preferred)
+        ? [preferred]
+        : state.correctionEligibleTerms;
+    if (!row || !eligibleTerms.length) return;
     $("gradeCorrectionRequestBody").innerHTML = `
         <div class="info-row"><span>Learner</span><strong>${escapeHtml(studentName(row))}</strong></div>
         <div class="info-row"><span>Subject</span><strong>${escapeHtml(blank(row.subject_name || state.selectedLoad?.subject_name))}</strong></div>
     `;
-    $("correctionTermInput").innerHTML = state.correctionEligibleTerms.map((period) => `
+    $("correctionTermInput").innerHTML = eligibleTerms.map((period) => `
         <option value="${period}">${periodLabel(period)} | Current: ${escapeHtml(gradeValue(row, period))}</option>
     `).join("");
     $("correctionRequestedGradeInput").value = "";
@@ -682,7 +727,15 @@ async function loadCorrections() {
         setMessage("correctionMessage", error.message);
         return;
     }
-    state.corrections = data || [];
+    let rows = data || [];
+    if (!canReviewGradeCorrections()) {
+        if (canUseLoads() && !state.loads.length) {
+            await fetchLoads(false).catch(() => []);
+        }
+        const keys = teacherLoadKeys();
+        rows = rows.filter((row) => correctionMatchesTeacherLoad(row, keys));
+    }
+    state.corrections = rows;
     setMessage("correctionMessage", `${state.corrections.length} request(s).`);
     list.innerHTML = state.corrections.map((row, index) => {
         const statusClass = clean(row.status).toLowerCase() === "approved" ? "good" : clean(row.status).toLowerCase() === "pending" ? "warn" : "bad";
