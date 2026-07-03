@@ -1,6 +1,5 @@
 {
-  "version": "2026.07.03.4",
-  "build": "iss-mobile-pwa-update-monitor",
-  "released_at": "2026-07-03",
-  "message": "A newer ISS Mobile copy is available."
+  "version": "2026.07.03.3",
+  "releasedAt": "2026-07-03T00:00:00+08:00",
+  "message": "ISS Mobile update available."
 }

@@ -1276,7 +1276,8 @@ async function start() {
     window.addEventListener("resize", enforcePhoneSize);
     window.addEventListener("orientationchange", () => setTimeout(enforcePhoneSize, 250));
     if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./service-worker.js").catch(console.warn);
+        const swVersion = encodeURIComponent(window.ISS_MOBILE_ASSET_VERSION || "2026.07.03.3");
+        navigator.serviceWorker.register(`./service-worker.js?v=${swVersion}`, { updateViaCache: "none" }).catch(console.warn);
     }
     if (!setupSupabase()) return;
     const { data } = await state.client.auth.getSession();

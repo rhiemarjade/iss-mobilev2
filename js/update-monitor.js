@@ -1,10 +1,11 @@
 (() => {
     "use strict";
 
-    const APP_VERSION = "2026.07.03.4";
+    const APP_VERSION = "2026.07.03.3";
     const VERSION_URL = "./version.json";
     const CHECK_INTERVAL_MS = 30 * 60 * 1000;
     const DISMISS_KEY = "issMobileUpdateDismissedVersion";
+    const UPDATE_PENDING_KEY = "issMobileUpdatePendingVersion";
     let lastCheck = 0;
     let latestInfo = null;
 
@@ -23,7 +24,7 @@
             const y = right[i] || "0";
             const nx = Number(x);
             const ny = Number(y);
-            if (Number.isFinite(nx) && Number.isFinite(ny) && x.match(/^\d+$/) && y.match(/^\d+$/)) {
+            if (Number.isFinite(nx) && Number.isFinite(ny) && /^\d+$/.test(x) && /^\d+$/.test(y)) {
                 if (nx !== ny) return nx > ny ? 1 : -1;
             } else {
                 const cmp = x.localeCompare(y, undefined, { sensitivity: "base", numeric: true });
@@ -59,7 +60,7 @@
         banner.setAttribute("aria-live", "polite");
         banner.innerHTML = `
             <p class="update-monitor-title">Update available</p>
-            <p class="update-monitor-text">A newer ISS Mobile copy is available.</p>
+            <p class="update-monitor-text">Download the latest ISS Mobile copy.</p>
             <div class="update-monitor-actions">
                 <button type="button" class="update-monitor-later-btn">Later</button>
                 <button type="button" class="update-monitor-update-btn">Update now</button>
@@ -93,6 +94,9 @@
             const latest = clean(info?.version);
             if (latest && compareVersions(latest, APP_VERSION) > 0) {
                 showUpdateBanner(info);
+            } else if (localStorage.getItem(UPDATE_PENDING_KEY)) {
+                localStorage.removeItem(UPDATE_PENDING_KEY);
+                toast("ISS Mobile is updated.");
             }
         } catch (error) {
             if (force) toast("Unable to check for updates.");
@@ -108,33 +112,72 @@
             .map((key) => caches.delete(key)));
     }
 
-    async function updateServiceWorker() {
+    function wait(ms) {
+        return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    async function waitForControllerChange(timeoutMs = 2500) {
+        if (!("serviceWorker" in navigator)) return;
+        await Promise.race([
+            new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true })),
+            wait(timeoutMs)
+        ]);
+    }
+
+    async function forceServiceWorkerUpdate() {
         if (!("serviceWorker" in navigator)) return;
         const registrations = await navigator.serviceWorker.getRegistrations();
         await Promise.all(registrations.map(async (registration) => {
             try {
                 await registration.update();
-                if (registration.waiting) {
-                    registration.waiting.postMessage({ type: "SKIP_WAITING" });
-                }
-                if (registration.active) {
-                    registration.active.postMessage({ type: "CLEAR_ISS_CACHE" });
-                }
+                if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+                if (registration.active) registration.active.postMessage({ type: "FORCE_UPDATE" });
             } catch (error) {
                 console.warn("Service worker update failed:", error);
             }
         }));
+        await waitForControllerChange();
+    }
+
+    async function unregisterServiceWorkers() {
+        if (!("serviceWorker" in navigator)) return;
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister().catch(() => false)));
+    }
+
+    async function warmLatestFiles(version) {
+        const tag = encodeURIComponent(version || String(Date.now()));
+        const files = [
+            "./index.html",
+            "./service-worker.js",
+            "./js/app.js",
+            "./js/update-monitor.js",
+            "./css/styles.css",
+            "./css/update-monitor.css",
+            "./manifest.webmanifest"
+        ];
+        await Promise.all(files.map((file) => fetch(`${file}?v=${tag}&t=${Date.now()}`, {
+            cache: "reload",
+            headers: { "Cache-Control": "no-cache" }
+        }).catch(() => null)));
     }
 
     async function updateNow(info = latestInfo) {
+        const version = clean(info?.version) || String(Date.now());
         removeBanner();
-        toast("Updating ISS Mobile...");
+        toast("Downloading update...");
+        localStorage.setItem(UPDATE_PENDING_KEY, version);
         try {
-            await updateServiceWorker();
+            await forceServiceWorkerUpdate();
             await clearAppCaches();
+            await unregisterServiceWorkers();
+            await warmLatestFiles(version);
+        } catch (error) {
+            console.warn("ISS Mobile forced update failed:", error);
         } finally {
             const url = new URL(window.location.href);
-            url.searchParams.set("v", clean(info?.version) || String(Date.now()));
+            url.searchParams.set("update", version);
+            url.searchParams.set("t", String(Date.now()));
             window.location.replace(url.toString());
         }
     }
