@@ -39,21 +39,22 @@
             <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password">
 
             <button id="loginBtn" class="primary-btn">Login</button>
-            <button id="resetPasswordBtn" class="ghost-btn" type="button">Reset password</button>
+            <button id="resetPasswordBtn" class="link-btn center-link" type="button">Forgot password?</button>
             <p id="loginMessage" class="message"></p>
         </section>
     </main>
 
     <main id="appView" class="app-view hidden">
         <header class="app-header">
-            <div>
+            <button id="openNavBtn" class="icon-btn" title="Menu" aria-label="Open navigation">☰</button>
+            <div class="header-title-wrap">
                 <p class="eyebrow">ISS Mobile</p>
-                <h1 id="viewTitle">Home</h1>
+                <h1 id="viewTitle">Dashboard</h1>
             </div>
-            <button id="logoutBtn" class="icon-btn" title="Logout" aria-label="Logout">↪</button>
+            <button id="refreshBtn" class="icon-btn" title="Refresh" aria-label="Refresh">↻</button>
         </header>
 
-        <section id="homeScreen" class="screen active-screen">
+        <section id="dashboardScreen" class="screen active-screen">
             <div class="profile-card">
                 <div class="avatar" id="userInitial">I</div>
                 <div>
@@ -61,28 +62,9 @@
                     <p id="userRoles">Authenticated</p>
                 </div>
             </div>
-
-            <div class="mini-grid">
-                <article class="mini-card">
-                    <strong id="homeLoadsCount">0</strong>
-                    <span>Loads</span>
-                </article>
-                <article class="mini-card">
-                    <strong id="homeAdvisoryCount">0</strong>
-                    <span>Advisory</span>
-                </article>
-            </div>
-
-            <p id="homeMessage" class="message compact"></p>
-        </section>
-
-        <section id="searchScreen" class="screen">
-            <div class="search-row">
-                <input id="studentSearchInput" type="search" placeholder="LRN or name">
-                <button id="studentSearchBtn" class="primary-btn small-btn">Go</button>
-            </div>
-            <p id="studentSearchMessage" class="message compact"></p>
-            <div id="studentResults" class="result-list"></div>
+            <div id="dashboardInfoGrid" class="mini-grid"></div>
+            <div id="dashboardLoadSummary" class="card-list"></div>
+            <p id="dashboardMessage" class="message compact"></p>
         </section>
 
         <section id="loadsScreen" class="screen">
@@ -90,48 +72,99 @@
             <p id="loadsMessage" class="message compact"></p>
         </section>
 
-        <section id="gradeScreen" class="screen">
+        <section id="loadDetailScreen" class="screen">
             <div class="screen-topline">
                 <button id="backToLoadsBtn" class="ghost-btn small-btn">Back</button>
-                <button id="saveGradesBtn" class="primary-btn small-btn">Save</button>
             </div>
-            <h2 id="gradeTitle" class="section-title">Grades</h2>
-            <p id="gradeSubtitle" class="subtitle"></p>
-            <div class="search-row single">
-                <input id="gradeSearchInput" type="search" placeholder="Filter learners">
-            </div>
-            <div id="gradeRows" class="grade-list"></div>
+            <h2 id="loadDetailTitle" class="section-title">Subject Load</h2>
+            <p id="loadDetailMeta" class="subtitle"></p>
+            <div id="gradeRows" class="card-list"></div>
             <p id="gradeMessage" class="message compact"></p>
         </section>
 
+        <section id="correctionsScreen" class="screen">
+            <div id="correctionList" class="card-list"></div>
+            <p id="correctionMessage" class="message compact"></p>
+        </section>
+
         <section id="advisoryScreen" class="screen">
-            <div class="search-row single">
-                <input id="advisorySearchInput" type="search" placeholder="Filter advisory">
-            </div>
-            <div id="advisoryList" class="card-list"></div>
+            <div id="advisoryCards" class="card-list"></div>
             <p id="advisoryMessage" class="message compact"></p>
         </section>
 
-        <section id="plScreen" class="screen">
-            <div class="filter-row">
-                <select id="plTermFilter" aria-label="Term">
-                    <option value="1">Term 1</option>
-                    <option value="2">Term 2</option>
-                    <option value="3">Term 3</option>
-                </select>
+        <section id="advisoryDetailScreen" class="screen">
+            <div class="screen-topline">
+                <button id="backToAdvisoryBtn" class="ghost-btn small-btn">Back</button>
             </div>
+            <h2 id="advisoryDetailTitle" class="section-title">Advisory Class</h2>
+            <p id="advisoryDetailMeta" class="subtitle"></p>
+            <div id="advisoryLearnerList" class="card-list"></div>
+        </section>
+
+        <section id="searchScreen" class="screen">
+            <div class="search-row">
+                <input id="studentSearchInput" type="search" placeholder="LRN or name">
+                <button id="studentSearchBtn" class="primary-btn small-btn">Go</button>
+            </div>
+            <div id="studentResults" class="card-list"></div>
+            <p id="studentSearchMessage" class="message compact"></p>
+        </section>
+
+        <section id="summaryScreen" class="screen">
+            <div id="summaryCards" class="card-list"></div>
+            <p id="summaryMessage" class="message compact"></p>
+        </section>
+
+        <section id="classesScreen" class="screen">
+            <div id="classesList" class="card-list"></div>
+            <p id="classesMessage" class="message compact"></p>
+        </section>
+
+        <section id="monitoringScreen" class="screen">
+            <div id="monitoringCards" class="card-list"></div>
+            <p id="monitoringMessage" class="message compact"></p>
+        </section>
+
+        <section id="monitoringDetailScreen" class="screen">
+            <div class="screen-topline">
+                <button id="backToMonitoringBtn" class="ghost-btn small-btn">Back</button>
+            </div>
+            <h2 id="monitoringDetailTitle" class="section-title">Grade Monitoring</h2>
+            <p id="monitoringDetailMeta" class="subtitle"></p>
+            <div id="monitoringSubjectList" class="card-list"></div>
+            <p id="monitoringDetailMessage" class="message compact"></p>
+        </section>
+
+        <section id="plScreen" class="screen">
             <div id="plSubjectCards" class="card-list"></div>
             <p id="plMessage" class="message compact"></p>
         </section>
 
-        <nav id="bottomNav" class="bottom-nav" aria-label="Mobile navigation">
-            <button data-target="home" class="active">Home</button>
-            <button data-target="search">Search</button>
-            <button data-target="loads" class="role-loads">Loads</button>
-            <button data-target="advisory" class="role-advisory">Advisory</button>
-            <button data-target="pl" class="role-pl">PL</button>
-        </nav>
+        <section id="plDetailScreen" class="screen">
+            <div class="screen-topline">
+                <button id="backToPlBtn" class="ghost-btn small-btn">Back</button>
+            </div>
+            <h2 id="plDetailTitle" class="section-title">PL Monitoring</h2>
+            <p id="plDetailMeta" class="subtitle"></p>
+            <div id="plGradeCards" class="mini-grid one-col"></div>
+            <div id="plSectionList" class="card-list"></div>
+        </section>
     </main>
+
+    <div id="navOverlay" class="nav-overlay hidden"></div>
+    <aside id="navDrawer" class="nav-drawer hidden" aria-label="Navigation pane">
+        <div class="drawer-head">
+            <div>
+                <p class="eyebrow">ISS Mobile</p>
+                <h2>Menu</h2>
+            </div>
+            <button id="closeNavBtn" class="icon-btn" aria-label="Close navigation">×</button>
+        </div>
+        <nav id="drawerNav" class="drawer-nav"></nav>
+        <div class="drawer-bottom">
+            <button id="logoutBtn" class="danger-outline-btn">Logout</button>
+        </div>
+    </aside>
 
     <div id="studentSheet" class="sheet hidden">
         <div class="sheet-panel">
@@ -143,15 +176,49 @@
         </div>
     </div>
 
-    <div id="advisorySheet" class="sheet hidden">
+    <div id="gradeSheet" class="sheet hidden">
         <div class="sheet-panel">
             <div class="sheet-header">
-                <h2 id="advisorySheetName">Learner</h2>
-                <button id="closeAdvisorySheetBtn" class="icon-btn">×</button>
+                <h2 id="gradeSheetName">Learner</h2>
+                <button id="closeGradeSheetBtn" class="icon-btn">×</button>
             </div>
-            <div id="advisorySheetBody" class="sheet-body"></div>
-            <button id="saveAdvisoryProfileBtn" class="primary-btn full-btn">Save</button>
-            <p id="advisorySheetMessage" class="message compact"></p>
+            <div id="gradeSheetMeta" class="sheet-meta"></div>
+            <div id="gradeSheetBody" class="sheet-body"></div>
+            <button id="saveSingleGradeBtn" class="primary-btn full-btn">Save</button>
+            <button id="openGradeCorrectionRequestBtn" class="ghost-btn full-btn hidden">Request correction</button>
+            <p id="gradeSheetMessage" class="message compact"></p>
+        </div>
+    </div>
+
+    <div id="gradeCorrectionRequestSheet" class="sheet hidden">
+        <div class="sheet-panel">
+            <div class="sheet-header">
+                <h2>Grade Correction</h2>
+                <button id="closeGradeCorrectionRequestBtn" class="icon-btn">×</button>
+            </div>
+            <div id="gradeCorrectionRequestBody" class="sheet-body"></div>
+            <label>Term</label>
+            <select id="correctionTermInput"></select>
+            <label>Corrected Grade</label>
+            <input id="correctionRequestedGradeInput" inputmode="numeric" pattern="[0-9]*" placeholder="60 to 100">
+            <label>Reason</label>
+            <textarea id="correctionReasonInput" rows="3" placeholder="Reason"></textarea>
+            <button id="submitCorrectionRequestBtn" class="primary-btn full-btn">Submit</button>
+            <p id="correctionRequestMessage" class="message compact"></p>
+        </div>
+    </div>
+
+    <div id="correctionActionSheet" class="sheet hidden">
+        <div class="sheet-panel">
+            <div class="sheet-header">
+                <h2 id="correctionActionTitle">Correction</h2>
+                <button id="closeCorrectionActionBtn" class="icon-btn">×</button>
+            </div>
+            <div id="correctionActionBody" class="sheet-body"></div>
+            <label>Notes</label>
+            <textarea id="correctionActionNotes" rows="3" placeholder="Optional notes"></textarea>
+            <div id="correctionActionButtons" class="action-row"></div>
+            <p id="correctionActionMessage" class="message compact"></p>
         </div>
     </div>
 
