@@ -1,9 +1,11 @@
-const CACHE_NAME = "iss-mobile-pwa-v3-comments2";
+const CACHE_NAME = "iss-mobile-pwa-2026-07-03-2";
 const APP_SHELL = [
     "./",
     "./index.html",
     "./css/styles.css",
+    "./css/update-monitor.css",
     "./js/app.js",
+    "./js/update-monitor.js",
     "./manifest.webmanifest",
     "./assets/icons/icon-192.png",
     "./assets/icons/icon-512.png",
@@ -12,19 +14,34 @@ const APP_SHELL = [
 
 self.addEventListener("install", (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+        caches.open(CACHE_NAME)
+            .then((cache) => cache.addAll(APP_SHELL))
+            .then(() => self.skipWaiting())
     );
 });
 
 self.addEventListener("activate", (event) => {
     event.waitUntil(
-        caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))).then(() => self.clients.claim())
+        caches.keys()
+            .then((keys) => Promise.all(keys.filter((key) => key.startsWith("iss-mobile-pwa") && key !== CACHE_NAME).map((key) => caches.delete(key))))
+            .then(() => self.clients.claim())
     );
+});
+
+self.addEventListener("message", (event) => {
+    if (event.data?.type === "SKIP_WAITING") {
+        self.skipWaiting();
+    }
+    if (event.data?.type === "CLEAR_ISS_CACHE") {
+        event.waitUntil(
+            caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("iss-mobile-pwa")).map((key) => caches.delete(key))))
+        );
+    }
 });
 
 self.addEventListener("fetch", (event) => {
     const requestUrl = new URL(event.request.url);
-    if (requestUrl.pathname.endsWith("/config.js")) return;
+    if (requestUrl.pathname.endsWith("/config.js") || requestUrl.pathname.endsWith("/version.json")) return;
     if (event.request.method !== "GET") return;
     event.respondWith(
         fetch(event.request).then((response) => {
