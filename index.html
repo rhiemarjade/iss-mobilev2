@@ -9,10 +9,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="ISS Mobile">
     <title>ISS Mobile</title>
-    <link rel="manifest" href="manifest.webmanifest?v=2026.07.03.3">
-    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=2026.07.03.3">
-    <link rel="stylesheet" href="css/styles.css?v=2026.07.03.3">
-    <link rel="stylesheet" href="css/update-monitor.css?v=2026.07.03.3">
+    <link rel="manifest" href="manifest.webmanifest?v=2026.07.06.1">
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=2026.07.06.1">
+    <link rel="stylesheet" href="css/styles.css?v=2026.07.06.1">
+    <link rel="stylesheet" href="css/update-monitor.css?v=2026.07.06.1">
 </head>
 <body>
     <div id="phoneGuard" class="phone-guard hidden">
@@ -76,6 +76,7 @@
         <section id="loadDetailScreen" class="screen">
             <div class="screen-topline">
                 <button id="backToLoadsBtn" class="ghost-btn small-btn">Back</button>
+                <button id="addProficiencyBtn" class="primary-btn small-btn inline-primary-btn" type="button">Add PL</button>
             </div>
             <h2 id="loadDetailTitle" class="section-title">Subject Load</h2>
             <p id="loadDetailMeta" class="subtitle"></p>
@@ -223,10 +224,57 @@
         </div>
     </div>
 
-    <script>window.ISS_MOBILE_ASSET_VERSION = "2026.07.03.3";</script>
-    <script src="config.js?v=2026.07.03.3"></script>
+    <div id="proficiencySheet" class="sheet hidden">
+        <div class="sheet-panel pl-encoding-panel">
+            <div class="sheet-header">
+                <h2>Add PL</h2>
+                <button id="closeProficiencySheetBtn" class="icon-btn">×</button>
+            </div>
+            <div id="proficiencySheetMeta" class="sheet-meta">Selected load</div>
+            <p id="proficiencyLearnerHint" class="message compact">Learner count will load with the record.</p>
+
+            <div class="pl-term-card">
+                <h3>Term 1</h3>
+                <label>No. of Learners</label>
+                <input class="proficiency-input" data-term="1" data-proficiency-field="number_of_learners" inputmode="numeric" pattern="[0-9]*" type="text">
+                <label>MPS or Proficiency Level</label>
+                <input class="proficiency-input" data-term="1" data-proficiency-field="mps_or_proficiency_level" maxlength="80" type="text">
+                <label>No. of Learners w/ 75% MPS and Above</label>
+                <input class="proficiency-input" data-term="1" data-proficiency-field="learners_75_mps_above" inputmode="numeric" pattern="[0-9]*" type="text">
+            </div>
+
+            <div class="pl-term-card">
+                <h3>Term 2</h3>
+                <label>No. of Learners</label>
+                <input class="proficiency-input" data-term="2" data-proficiency-field="number_of_learners" inputmode="numeric" pattern="[0-9]*" type="text">
+                <label>MPS or Proficiency Level</label>
+                <input class="proficiency-input" data-term="2" data-proficiency-field="mps_or_proficiency_level" maxlength="80" type="text">
+                <label>No. of Learners w/ 75% MPS and Above</label>
+                <input class="proficiency-input" data-term="2" data-proficiency-field="learners_75_mps_above" inputmode="numeric" pattern="[0-9]*" type="text">
+            </div>
+
+            <div class="pl-term-card">
+                <h3>Term 3</h3>
+                <label>No. of Learners</label>
+                <input class="proficiency-input" data-term="3" data-proficiency-field="number_of_learners" inputmode="numeric" pattern="[0-9]*" type="text">
+                <label>MPS or Proficiency Level</label>
+                <input class="proficiency-input" data-term="3" data-proficiency-field="mps_or_proficiency_level" maxlength="80" type="text">
+                <label>No. of Learners w/ 75% MPS and Above</label>
+                <input class="proficiency-input" data-term="3" data-proficiency-field="learners_75_mps_above" inputmode="numeric" pattern="[0-9]*" type="text">
+            </div>
+
+            <div class="action-row">
+                <button id="cancelProficiencyBtn" class="ghost-btn" type="button">Cancel</button>
+                <button id="saveProficiencyBtn" class="primary-btn compact-primary-btn" type="button">Save PL</button>
+            </div>
+            <p id="proficiencyMessage" class="message compact">Ready.</p>
+        </div>
+    </div>
+
+    <script>window.ISS_MOBILE_ASSET_VERSION = "2026.07.06.1";</script>
+    <script src="config.js?v=2026.07.06.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/app.js?v=2026.07.03.3"></script>
-    <script src="js/update-monitor.js?v=2026.07.03.3"></script>
+    <script src="js/app.js?v=2026.07.06.1"></script>
+    <script src="js/update-monitor.js?v=2026.07.06.1"></script>
 </body>
 </html>

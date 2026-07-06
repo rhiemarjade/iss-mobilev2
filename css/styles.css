@@ -467,3 +467,37 @@ input:focus, select:focus, textarea:focus {
 @media (min-width: 561px), (orientation: landscape) {
     body::before { content: ""; }
 }
+
+.inline-primary-btn {
+    width: auto;
+    min-width: 92px;
+    min-height: 42px;
+    margin: 0;
+    padding: 0 14px;
+}
+.compact-primary-btn {
+    margin-top: 0;
+}
+.pl-encoding-panel {
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+}
+.pl-term-card {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface-soft);
+}
+.pl-term-card h3 {
+    margin: 0 0 2px;
+    color: var(--primary);
+    font-size: 15px;
+}
+.pl-term-card label {
+    margin-top: 10px;
+}
+.pl-term-card input:disabled {
+    background: #f3f5fa;
+    color: #475569;
+    opacity: 1;
+}

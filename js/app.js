@@ -43,6 +43,8 @@ const state = {
     selectedLoad: null,
     gradeRows: [],
     selectedGradeRow: null,
+    proficiencyRows: [],
+    proficiencyReady: false,
     correctionEligibleTerms: [],
     corrections: [],
     selectedCorrection: null,
@@ -407,6 +409,13 @@ async function resetPassword() {
 
 async function logout() {
     await state.client.auth.signOut();
+    closeProficiencySheet();
+    state.loads = [];
+    state.selectedLoad = null;
+    state.gradeRows = [];
+    state.selectedGradeRow = null;
+    state.proficiencyRows = [];
+    state.proficiencyReady = false;
     showLogin();
 }
 
@@ -496,6 +505,195 @@ async function loadLoads() {
 
 function periodLabel(period) {
     return `Term ${period}`;
+}
+
+function selectedLoadId() {
+    return state.selectedLoad?.load_id || state.selectedLoad?.teacher_load_id || null;
+}
+
+function proficiencyInputs() {
+    return Array.from(document.querySelectorAll(".proficiency-input"));
+}
+
+function proficiencyInput(term, field) {
+    return document.querySelector(`.proficiency-input[data-term="${term}"][data-proficiency-field="${field}"]`);
+}
+
+function setProficiencyInputsDisabled(disabled) {
+    proficiencyInputs().forEach((input) => {
+        input.disabled = disabled;
+    });
+}
+
+function updateProficiencySaveState() {
+    const button = $("saveProficiencyBtn");
+    if (!button) return;
+    const sheetOpen = !$("proficiencySheet")?.classList.contains("hidden");
+    button.disabled = !sheetOpen || !state.proficiencyReady || !selectedLoadId();
+}
+
+function clearProficiencyInputs() {
+    proficiencyInputs().forEach((input) => {
+        input.value = "";
+    });
+}
+
+function fillProficiencyInput(term, field, value) {
+    const input = proficiencyInput(term, field);
+    if (!input) return;
+    input.value = value === null || value === undefined ? "" : String(value);
+}
+
+function setProficiencySheetHeader(row = null) {
+    const load = state.selectedLoad || {};
+    const gradeSection = [row?.grade_level ?? load.grade_level, row?.section_name ?? load.section_name]
+        .filter((value) => clean(value))
+        .join(" ");
+    $("proficiencySheetMeta").textContent = `${gradeSection ? `Grade ${gradeSection}` : "Selected load"} | ${blank(row?.subject_name || load.subject_name, "Subject")} | SY ${blank(row?.school_year || load.school_year, "Not set")}`;
+}
+
+function populateProficiencySheet(rows = []) {
+    state.proficiencyRows = rows || [];
+    clearProficiencyInputs();
+    const firstRow = state.proficiencyRows[0] || null;
+    setProficiencySheetHeader(firstRow);
+    const enrolledCount = firstRow?.enrolled_learner_count ?? state.selectedLoad?.total_students ?? state.selectedLoad?.enrollment_count ?? null;
+    setMessage("proficiencyLearnerHint", enrolledCount === null || enrolledCount === undefined
+        ? "Learner count is not available. Enter the learner count manually."
+        : `Current learner count from enrollment records: ${enrolledCount}. Use this value only if it applies to the term.`);
+    state.proficiencyRows.forEach((row) => {
+        const term = Number(row.term || 0);
+        if (!term) return;
+        fillProficiencyInput(term, "number_of_learners", row.number_of_learners);
+        fillProficiencyInput(term, "mps_or_proficiency_level", row.mps_or_proficiency_level);
+        fillProficiencyInput(term, "learners_75_mps_above", row.learners_75_mps_above);
+    });
+}
+
+async function loadProficiencyForSelectedLoad() {
+    const loadId = selectedLoadId();
+    if (!loadId) throw new Error("Open a teaching load before adding PL.");
+    const { data, error } = await state.client.rpc("get_teacher_load_proficiency", {
+        p_teacher_load_id: loadId
+    });
+    if (error) throw error;
+    populateProficiencySheet(data || []);
+}
+
+async function openProficiencySheet() {
+    if (!state.selectedLoad) {
+        setMessage("gradeMessage", "Open a teaching load before adding PL.");
+        return;
+    }
+    if (!selectedLoadId()) {
+        setMessage("gradeMessage", "This teaching load has no load ID for PL encoding.");
+        return;
+    }
+    state.proficiencyReady = false;
+    setProficiencySheetHeader();
+    clearProficiencyInputs();
+    setMessage("proficiencyLearnerHint", "Loading learner count and saved entries...");
+    setMessage("proficiencyMessage", "Loading PL data...");
+    $("proficiencySheet").classList.remove("hidden");
+    setProficiencyInputsDisabled(true);
+    updateProficiencySaveState();
+    try {
+        await loadProficiencyForSelectedLoad();
+        state.proficiencyReady = true;
+        setProficiencyInputsDisabled(false);
+        setMessage("proficiencyMessage", "Ready.");
+    } catch (error) {
+        console.error(error);
+        setMessage("proficiencyMessage", error.message || "Unable to load PL data.");
+    } finally {
+        updateProficiencySaveState();
+    }
+}
+
+function closeProficiencySheet() {
+    const sheet = $("proficiencySheet");
+    if (!sheet) return;
+    sheet.classList.add("hidden");
+    state.proficiencyRows = [];
+    state.proficiencyReady = false;
+}
+
+function parseOptionalWholeNumber(value, label) {
+    const text = clean(value);
+    if (text === "") return null;
+    const number = Number(text);
+    if (!Number.isInteger(number) || number < 0) {
+        throw new Error(`${label} must be a whole number, 0 or higher.`);
+    }
+    return number;
+}
+
+function collectProficiencyItems() {
+    const items = [];
+    for (const term of [1, 2, 3]) {
+        const numberOfLearners = parseOptionalWholeNumber(
+            proficiencyInput(term, "number_of_learners")?.value,
+            `Term ${term} number of learners`
+        );
+        const mpsOrProficiencyLevel = clean(proficiencyInput(term, "mps_or_proficiency_level")?.value);
+        const learners75MpsAbove = parseOptionalWholeNumber(
+            proficiencyInput(term, "learners_75_mps_above")?.value,
+            `Term ${term} number of learners with 75 percent MPS and above`
+        );
+        if (numberOfLearners !== null && learners75MpsAbove !== null && learners75MpsAbove > numberOfLearners) {
+            throw new Error(`Term ${term}: learners with 75 percent MPS and above cannot be greater than the number of learners.`);
+        }
+        if (mpsOrProficiencyLevel.length > 80) {
+            throw new Error(`Term ${term}: MPS or PL value is too long.`);
+        }
+        items.push({
+            term,
+            number_of_learners: numberOfLearners,
+            mps_or_proficiency_level: mpsOrProficiencyLevel || null,
+            learners_75_mps_above: learners75MpsAbove
+        });
+    }
+    return items;
+}
+
+async function saveProficiency() {
+    const loadId = selectedLoadId();
+    if (!loadId) {
+        setMessage("proficiencyMessage", "Open a teaching load before saving PL data.");
+        return;
+    }
+    let items = [];
+    try {
+        items = collectProficiencyItems();
+    } catch (error) {
+        setMessage("proficiencyMessage", error.message);
+        return;
+    }
+    $("saveProficiencyBtn").disabled = true;
+    setProficiencyInputsDisabled(true);
+    setMessage("proficiencyMessage", "Saving PL data...");
+    const { data, error } = await state.client.rpc("save_teacher_load_proficiency", {
+        p_teacher_load_id: loadId,
+        p_items: items
+    });
+    if (error) {
+        setProficiencyInputsDisabled(false);
+        setMessage("proficiencyMessage", error.message);
+        updateProficiencySaveState();
+        return;
+    }
+    const results = data || [];
+    const failed = results.filter((row) => !row.saved);
+    try {
+        await loadProficiencyForSelectedLoad();
+    } catch (reloadError) {
+        console.warn(reloadError);
+    }
+    setProficiencyInputsDisabled(false);
+    setMessage("proficiencyMessage", failed.length
+        ? `${results.length - failed.length} term(s) saved, ${failed.length} failed. First error: ${failed[0].message}`
+        : "PL data saved successfully.");
+    updateProficiencySaveState();
 }
 
 function gradeValue(row, period) {
@@ -1258,6 +1456,14 @@ function bindEvents() {
     $("studentSearchBtn").addEventListener("click", searchStudents);
     $("studentSearchInput").addEventListener("keydown", (event) => { if (event.key === "Enter") searchStudents(); });
     $("backToLoadsBtn").addEventListener("click", () => showScreen("loads"));
+    $("addProficiencyBtn").addEventListener("click", openProficiencySheet);
+    $("closeProficiencySheetBtn").addEventListener("click", closeProficiencySheet);
+    $("cancelProficiencyBtn").addEventListener("click", closeProficiencySheet);
+    $("saveProficiencyBtn").addEventListener("click", saveProficiency);
+    $("proficiencySheet").addEventListener("input", (event) => {
+        if (event.target.classList.contains("proficiency-input")) setMessage("proficiencyMessage", "Ready to save.");
+        updateProficiencySaveState();
+    });
     $("backToAdvisoryBtn").addEventListener("click", () => showScreen("advisory"));
     $("backToMonitoringBtn").addEventListener("click", () => showScreen("monitoring"));
     $("backToPlBtn").addEventListener("click", () => showScreen("pl"));
