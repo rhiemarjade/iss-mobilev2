@@ -58,7 +58,11 @@ const state = {
     classRows: [],
     plRawRows: [],
     plRows: [],
+    plSubjectCards: [],
     selectedPlSubject: null,
+    selectedPlSubjectCard: null,
+    selectedPlGradeCards: [],
+    selectedPlGradeGroup: null,
     canViewPl: false
 };
 
@@ -1272,33 +1276,159 @@ async function openMonitoringClass(card) {
     setMessage("monitoringDetailMessage", `${state.monitoringSubjects.length} subject(s).`);
 }
 
-function plStatus(row) {
-    if (row?.pl_mobile_status) return row.pl_mobile_status;
-    const learners = Number(row.number_of_learners);
-    const mps = Number(row.mps_or_proficiency_level);
-    const above = Number(row.learners_75_mps_above);
-    if (!row.entry_status || row.entry_status === "Missing") return "Missing";
-    if (!Number.isFinite(mps)) return "Non numeric";
-    if (!Number.isFinite(learners) || learners <= 0 || !Number.isFinite(above)) return "Incomplete";
-    return "Complete";
+const PL_SUBJECT_DEFINITIONS = [
+    { key: "general_subjects", label: "General Subjects", rank: 1, match: (text) => text.includes("general subject") || text === "general" || text.includes("general subjects") },
+    { key: "filipino", label: "Filipino", rank: 2, match: (text) => /\bfilipino\b/.test(text) },
+    { key: "english", label: "English", rank: 3, match: (text) => /\benglish\b/.test(text) },
+    { key: "math", label: "Math", rank: 4, match: (text) => /\bmath\b/.test(text) || /\bmathematics\b/.test(text) },
+    { key: "science", label: "Science", rank: 5, match: (text) => /\bscience\b/.test(text) },
+    { key: "ap", label: "AP", rank: 6, match: (text) => /\bap\b/.test(text) || text.includes("araling panlipunan") || text.includes("social studies") },
+    { key: "values", label: "Values", rank: 7, match: (text) => /\bvalues\b/.test(text) || /\besp\b/.test(text) || text.includes("edukasyon sa pagpapakatao") || text.includes("gmrc") },
+    { key: "tle", label: "TLE", rank: 8, match: (text) => /\btle\b/.test(text) || /\bepp\b/.test(text) || text.includes("technology and livelihood") || text.includes("livelihood education") },
+    { key: "mapeh", label: "MAPEH", rank: 9, match: (text) => /\bmapeh\b/.test(text) || text.includes("music and arts") || text.includes("music arts") || text.includes("physical education") || /\bpe\b/.test(text) || text.includes("health") }
+];
+
+function plNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+function plMpsNumber(value) {
+    if (value === null || value === undefined) return null;
+    const cleaned = String(value).trim().replace(/%$/, "");
+    if (!cleaned) return null;
+    const number = Number(cleaned);
+    return Number.isFinite(number) ? number : null;
+}
+
+function plFormatNumber(value, digits = 2) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "—";
+    return number.toLocaleString("en-PH", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+    });
+}
+
+function plFormatLearners(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "—";
+    const isWhole = Math.abs(number - Math.round(number)) < 0.000001;
+    return number.toLocaleString("en-PH", {
+        minimumFractionDigits: isWhole ? 0 : 2,
+        maximumFractionDigits: isWhole ? 0 : 2
+    });
+}
+
+function plFormatPercent(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "—";
+    return `${number.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
+
+function plNormalizedText(value) {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/&/g, " and ")
+        .replace(/\bgrade\s*\d+\b/g, " ")
+        .replace(/\bgrades\s*\d+\b/g, " ")
+        .replace(/\b(7|8|9|10)\b/g, " ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function plRawSubjectText(row) {
+    return [
+        row?.subject_area,
+        row?.subject_area_name,
+        row?.subject_group,
+        row?.sf_learning_area,
+        row?.card_name,
+        row?.subject_name,
+        row?.subject_code
+    ].filter(Boolean).join(" ");
+}
+
+function plCleanSubjectName(row) {
+    const raw = clean(row?.subject_area || row?.subject_area_name || row?.subject_group || row?.sf_learning_area || row?.card_name || row?.subject_name || "Subject");
+    const cleaned = raw
+        .replace(/\bGrade\s*\d+\b/gi, "")
+        .replace(/\s+\d+\s*$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    return cleaned || raw || "Subject";
+}
+
+function plSubjectDefinition(row) {
+    const text = plNormalizedText(plRawSubjectText(row));
+    const match = PL_SUBJECT_DEFINITIONS.find((definition) => definition.match(text));
+    if (match) return match;
+    const fallback = plCleanSubjectName(row);
+    const key = fallback.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "subject";
+    return { key, label: fallback, rank: 99, match: () => false };
 }
 
 function plSubjectArea(row) {
-    return row.subject_area || row.subject_area_name || row.subject_group || row.subject_name || "Subject";
+    return plSubjectDefinition(row).label;
+}
+
+function plSubjectKey(row) {
+    return plSubjectDefinition(row).key;
+}
+
+function plSubjectRank(subjectKey) {
+    const item = PL_SUBJECT_DEFINITIONS.find((definition) => definition.key === subjectKey);
+    return item?.rank || 99;
+}
+
+function plStatus(row) {
+    if (row?.pl_mobile_status) return row.pl_mobile_status;
+    if (row?.pl_monitoring_status_override) return row.pl_monitoring_status_override;
+    if (row?.has_entry === false) return "Missing";
+    if (row?.entry_status === "Missing") return "Missing";
+
+    const learners = plNumber(row.number_of_learners);
+    const mpsText = clean(row.mps_or_proficiency_level);
+    const mps = plMpsNumber(mpsText);
+    const above = plNumber(row.learners_75_mps_above);
+
+    if (!row?.has_entry && !row?.entry_status && learners === null && !mpsText && above === null) return "Missing";
+    if (learners === null || learners <= 0 || !mpsText || above === null) return "Incomplete";
+    if (mps === null) return "Non numeric";
+    return "Complete";
+}
+
+function plStatusClass(status) {
+    const normalized = clean(status).toLowerCase();
+    if (normalized === "complete") return "good";
+    if (normalized === "missing") return "bad";
+    return "warn";
 }
 
 function plIsMapeh(row) {
-    const text = [plSubjectArea(row), row.subject_name, row.card_name, row.subject_code].filter(Boolean).join(" ").toLowerCase();
-    return text.includes("mapeh") || text.includes("music") || text.includes("arts") || text.includes("physical") || text.includes("health");
+    return plSubjectKey(row) === "mapeh";
 }
 
 function plSectionKey(row) {
-    return [row.school_year_id, row.grade_level, row.section_name, row.class_id].map((x) => clean(x).toLowerCase()).join("|");
+    return [row.school_year_id, row.grade_level, row.section_name, row.class_id, row.term].map((x) => clean(x).toLowerCase()).join("|");
+}
+
+function plTeacherName(row) {
+    return clean(row?.current_teacher_name || row?.teacher_name || row?.last_teacher_name) || "No teacher";
 }
 
 function plTeacherText(group = []) {
-    const names = [...new Set(group.map((row) => clean(row.current_teacher_name || row.teacher_name || row.last_teacher_name)).filter(Boolean))];
+    const names = [...new Set(group.map(plTeacherName).filter(Boolean))];
     return names.join(", ") || "No teacher";
+}
+
+function plMapehComponentLabel(row) {
+    const text = plNormalizedText([row?.subject_name, row?.card_name, row?.subject_code].filter(Boolean).join(" "));
+    if (text.includes("physical education") || /\bpe\b/.test(text) || text.includes("health")) return "PE and Health";
+    if (text.includes("music") || text.includes("arts")) return "Music and Arts";
+    return row?.subject_name || row?.card_name || "MAPEH Component";
 }
 
 function buildPlDisplayRows(rows) {
@@ -1316,46 +1446,93 @@ function buildPlDisplayRows(rows) {
     mapehGroups.forEach((group) => {
         const complete = group.filter((row) => plStatus(row) === "Complete");
         const allMissing = group.every((row) => plStatus(row) === "Missing");
+        const hasNonNumeric = group.some((row) => plStatus(row).toLowerCase().includes("numeric"));
         const base = group[0] || {};
         const avg = (values) => {
-            const nums = values.map(Number).filter(Number.isFinite);
+            const nums = values.map(plMpsNumber).filter((value) => Number.isFinite(value));
             if (!nums.length) return null;
             return nums.reduce((a, b) => a + b, 0) / nums.length;
         };
+        const avgLearners = (values) => {
+            const nums = values.map(plNumber).filter((value) => Number.isFinite(value));
+            if (!nums.length) return null;
+            return nums.reduce((a, b) => a + b, 0) / nums.length;
+        };
+        const completeAll = complete.length === group.length && group.length > 0;
         normal.push({
             ...base,
             subject_area: "MAPEH",
+            subject_area_name: "MAPEH",
+            sf_learning_area: "MAPEH",
+            card_name: "MAPEH",
             subject_name: "MAPEH",
+            subject_code: "MAPEH",
+            source_rows: group,
             current_teacher_name: plTeacherText(group),
-            number_of_learners: complete.length === group.length ? avg(complete.map((row) => row.number_of_learners)) : null,
-            mps_or_proficiency_level: complete.length === group.length ? avg(complete.map((row) => row.mps_or_proficiency_level)) : null,
-            learners_75_mps_above: complete.length === group.length ? avg(complete.map((row) => row.learners_75_mps_above)) : null,
-            pl_mobile_status: complete.length === group.length ? "Complete" : allMissing ? "Missing" : "Incomplete"
+            number_of_learners: completeAll ? avgLearners(complete.map((row) => row.number_of_learners)) : null,
+            mps_or_proficiency_level: completeAll ? avg(complete.map((row) => row.mps_or_proficiency_level)) : null,
+            learners_75_mps_above: completeAll ? avgLearners(complete.map((row) => row.learners_75_mps_above)) : null,
+            pl_mobile_status: completeAll ? "Complete" : allMissing ? "Missing" : hasNonNumeric ? "Non numeric" : "Incomplete"
         });
     });
     return normal;
 }
 
+function plExpandedRows(rows = []) {
+    return rows.flatMap((row) => row?.source_rows || [row]);
+}
+
+function summarizePlRows(rows) {
+    const total = rows.length;
+    let complete = 0;
+    let missing = 0;
+    let incomplete = 0;
+    let learners = 0;
+    let weighted = 0;
+    let above = 0;
+
+    rows.forEach((row) => {
+        const status = plStatus(row);
+        if (status === "Complete") {
+            const learnerCount = plNumber(row.number_of_learners) || 0;
+            const mps = plMpsNumber(row.mps_or_proficiency_level) || 0;
+            const aboveCount = plNumber(row.learners_75_mps_above) || 0;
+            complete += 1;
+            learners += learnerCount;
+            weighted += learnerCount * mps;
+            above += aboveCount;
+        } else if (status === "Missing") {
+            missing += 1;
+        } else {
+            incomplete += 1;
+        }
+    });
+
+    return {
+        total,
+        complete,
+        missing,
+        incomplete,
+        learners,
+        weighted,
+        above,
+        pl: learners ? weighted / learners : null,
+        abovePercent: learners ? (above / learners) * 100 : null,
+        completion: total ? (complete / total) * 100 : null
+    };
+}
+
 function summarizePlBySubject(rows) {
     const map = new Map();
     rows.forEach((row) => {
+        const key = plSubjectKey(row);
         const subject = plSubjectArea(row);
-        if (!map.has(subject)) map.set(subject, { subject, total: 0, complete: 0, learners: 0, weighted: 0, above: 0, rows: [] });
-        const item = map.get(subject);
-        const status = plStatus(row);
-        item.total += 1;
-        item.rows.push(row);
-        if (status === "Complete") {
-            const learners = Number(row.number_of_learners) || 0;
-            const mps = Number(row.mps_or_proficiency_level) || 0;
-            const above = Number(row.learners_75_mps_above) || 0;
-            item.complete += 1;
-            item.learners += learners;
-            item.weighted += learners * mps;
-            item.above += above;
-        }
+        if (!map.has(key)) map.set(key, { key, subject, rank: plSubjectRank(key), rows: [] });
+        map.get(key).rows.push(row);
     });
-    return [...map.values()].sort((a, b) => a.subject.localeCompare(b.subject, undefined, { sensitivity: "base" }));
+    return [...map.values()]
+        .map((item) => ({ ...item, ...summarizePlRows(item.rows) }))
+        .sort((a, b) => (a.rank - b.rank) || a.subject.localeCompare(b.subject, undefined, { sensitivity: "base" }));
 }
 
 async function loadPlMonitoring() {
@@ -1365,6 +1542,9 @@ async function loadPlMonitoring() {
     }
     setMessage("plMessage", "Loading...");
     $("plSubjectCards").innerHTML = "";
+    state.selectedPlSubject = null;
+    state.selectedPlSubjectCard = null;
+    state.selectedPlGradeGroup = null;
     const { data, error } = await state.client.rpc("get_proficiency_level_monitoring_rows", {
         p_school_year_id: currentSchoolYearId(),
         p_grade_level: null,
@@ -1378,14 +1558,15 @@ async function loadPlMonitoring() {
     state.plRawRows = data || [];
     state.plRows = buildPlDisplayRows(state.plRawRows);
     const cards = summarizePlBySubject(state.plRows);
+    state.plSubjectCards = cards;
     $("plSubjectCards").innerHTML = cards.map((card, index) => {
-        const completion = card.total ? (card.complete / card.total) * 100 : null;
-        const pl = card.learners ? card.weighted / card.learners : null;
         return `
-            <article class="pl-card" data-pl-subject-index="${index}">
+            <article class="pl-card tappable-card" data-pl-subject-index="${index}">
                 <p class="card-title">${escapeHtml(card.subject)}</p>
-                <div class="card-row"><span>PL</span><strong>${pl === null ? "—" : pl.toFixed(2)}</strong></div>
-                <div class="card-row"><span>Completion</span><span class="badge ${completion === 100 ? "good" : completion > 0 ? "warn" : "bad"}">${percentText(completion)}</span></div>
+                <p class="card-meta">${escapeHtml(activeTermLabel())} | ${card.total} subject section(s)</p>
+                <div class="card-row"><span>PL</span><strong>${card.pl === null ? "—" : plFormatNumber(card.pl)}</strong></div>
+                <div class="card-row"><span>75% and above</span><strong>${card.abovePercent === null ? "—" : plFormatPercent(card.abovePercent)}</strong></div>
+                <div class="card-row"><span>Completion</span><span class="badge ${card.completion === 100 ? "good" : card.complete > 0 ? "warn" : "bad"}">${percentText(card.completion)}</span></div>
             </article>
         `;
     }).join("");
@@ -1395,54 +1576,113 @@ async function loadPlMonitoring() {
     setMessage("plMessage", `${cards.length} subject area(s).`);
 }
 
-function openPlSubject(card) {
-    state.selectedPlSubject = card.subject;
-    const rows = card.rows || state.plRows.filter((row) => plSubjectArea(row) === card.subject);
-    $("plDetailTitle").textContent = card.subject;
-    $("plDetailMeta").textContent = activeTermLabel();
-    const gradeGroups = new Map();
+function plGradeLabel(grade) {
+    return grade === "not_set" ? "Grade not set" : `Grade ${grade}`;
+}
+
+function buildPlGradeGroups(rows = []) {
+    const groups = new Map();
     rows.forEach((row) => {
-        const grade = row.grade_level || "Unassigned";
-        if (!gradeGroups.has(grade)) gradeGroups.set(grade, { grade, total: 0, complete: 0, learners: 0, weighted: 0, above: 0 });
-        const group = gradeGroups.get(grade);
-        const status = plStatus(row);
-        group.total += 1;
-        if (status === "Complete") {
-            const learners = Number(row.number_of_learners) || 0;
-            const mps = Number(row.mps_or_proficiency_level) || 0;
-            const above = Number(row.learners_75_mps_above) || 0;
-            group.complete += 1;
-            group.learners += learners;
-            group.weighted += learners * mps;
-            group.above += above;
-        }
+        const grade = clean(row.grade_level) || "not_set";
+        if (!groups.has(grade)) groups.set(grade, { grade, rows: [] });
+        groups.get(grade).rows.push(row);
     });
-    const gradeCards = [...gradeGroups.values()].sort((a, b) => Number(a.grade || 99) - Number(b.grade || 99));
-    $("plGradeCards").innerHTML = gradeCards.map((group) => {
-        const pl = group.learners ? group.weighted / group.learners : null;
+    return [...groups.values()]
+        .map((group) => ({ ...group, ...summarizePlRows(group.rows) }))
+        .sort((a, b) => {
+            const gradeA = a.grade === "not_set" ? 99 : Number(a.grade);
+            const gradeB = b.grade === "not_set" ? 99 : Number(b.grade);
+            return gradeA - gradeB;
+        });
+}
+
+function renderPlGradeCards(gradeCards) {
+    $("plGradeCards").innerHTML = gradeCards.map((group, index) => {
         return `
-            <article class="mini-card">
-                <strong>${pl === null ? "—" : pl.toFixed(2)}</strong>
-                <span>Grade ${escapeHtml(group.grade)} | ${group.complete} of ${group.total}</span>
+            <article class="mini-card tappable-card" data-pl-grade-index="${index}">
+                <strong>${group.pl === null ? "—" : plFormatNumber(group.pl)}</strong>
+                <span>${escapeHtml(plGradeLabel(group.grade))} | ${group.complete} of ${group.total} complete</span>
             </article>
         `;
     }).join("");
-    $("plSectionList").innerHTML = rows.sort((a, b) => {
-        const grade = Number(a.grade_level || 0) - Number(b.grade_level || 0);
-        if (grade !== 0) return grade;
-        return clean(a.section_name).localeCompare(clean(b.section_name), undefined, { sensitivity: "base" });
-    }).map((row) => {
-        const status = plStatus(row);
-        const statusClass = status === "Complete" ? "good" : status === "Missing" ? "bad" : "warn";
+    $("plGradeCards").querySelectorAll("[data-pl-grade-index]").forEach((card) => {
+        card.addEventListener("click", () => openPlGrade(gradeCards[Number(card.dataset.plGradeIndex)]));
+    });
+}
+
+function openPlSubject(card) {
+    if (!card) return;
+    state.selectedPlSubject = card.key;
+    state.selectedPlSubjectCard = card;
+    state.selectedPlGradeGroup = null;
+    $("backToPlBtn").textContent = "Back";
+    $("plDetailTitle").textContent = card.subject;
+    $("plDetailMeta").textContent = `${activeTermLabel()} | PL by grade level`;
+    const gradeCards = buildPlGradeGroups(card.rows || []);
+    state.selectedPlGradeCards = gradeCards;
+    renderPlGradeCards(gradeCards);
+    $("plSectionList").innerHTML = gradeCards.length
+        ? `<p class="message compact">Tap a grade level to view subject teachers.</p>`
+        : `<p class="message compact">No grade level records found.</p>`;
+    showScreen("plDetail", true);
+}
+
+function plSectionLabel(row) {
+    const grade = clean(row.grade_level) ? `G${row.grade_level}` : "Grade not set";
+    return `${grade} ${clean(row.section_name) || "Section not set"}`;
+}
+
+function plTeacherGroups(rows = []) {
+    const groups = new Map();
+    plExpandedRows(rows).forEach((row) => {
+        const key = clean(row.current_teacher_employee_id || row.teacher_employee_id || row.current_teacher_name || row.teacher_name || row.last_teacher_name) || "no_teacher";
+        if (!groups.has(key)) groups.set(key, { key, teacherName: plTeacherName(row), rows: [] });
+        groups.get(key).rows.push(row);
+    });
+    return [...groups.values()]
+        .map((group) => ({ ...group, ...summarizePlRows(group.rows) }))
+        .sort((a, b) => a.teacherName.localeCompare(b.teacherName, undefined, { sensitivity: "base" }));
+}
+
+function openPlGrade(group) {
+    if (!group || !state.selectedPlSubjectCard) return;
+    state.selectedPlGradeGroup = group;
+    $("backToPlBtn").textContent = "Back to Grades";
+    $("plDetailTitle").textContent = `${state.selectedPlSubjectCard.subject} ${plGradeLabel(group.grade)}`;
+    $("plDetailMeta").textContent = `${activeTermLabel()} | Subject teachers`;
+    $("plGradeCards").innerHTML = `
+        <article class="mini-card">
+            <strong>${group.pl === null ? "—" : plFormatNumber(group.pl)}</strong>
+            <span>${group.complete} of ${group.total} subject section(s) complete</span>
+        </article>
+    `;
+
+    const teachers = plTeacherGroups(group.rows || []);
+    $("plSectionList").innerHTML = teachers.length ? teachers.map((teacher) => {
+        const statusClass = teacher.completion === 100 ? "good" : teacher.complete > 0 ? "warn" : "bad";
+        const sections = [...new Set(teacher.rows.map((row) => {
+            const component = row?.source_rows ? "" : plIsMapeh(row) ? ` | ${plMapehComponentLabel(row)}` : "";
+            return `${plSectionLabel(row)}${component}`;
+        }))].join("; ");
         return `
             <article class="data-card">
-                <p class="card-title">G${escapeHtml(blank(row.grade_level))} ${escapeHtml(blank(row.section_name))}</p>
-                <p class="card-meta">${escapeHtml(blank(row.current_teacher_name || row.teacher_name || row.last_teacher_name, "No teacher"))}</p>
-                <div class="card-row"><span>Status</span><span class="badge ${statusClass}">${escapeHtml(status)}</span></div>
+                <p class="card-title">${escapeHtml(teacher.teacherName)}</p>
+                <p class="card-meta">${escapeHtml(sections || "No section record")}</p>
+                <div class="card-row"><span>PL</span><strong>${teacher.pl === null ? "—" : plFormatNumber(teacher.pl)}</strong></div>
+                <div class="card-row"><span>75% and above</span><strong>${teacher.abovePercent === null ? "—" : plFormatPercent(teacher.abovePercent)}</strong></div>
+                <div class="card-row"><span>Completion</span><span class="badge ${statusClass}">${percentText(teacher.completion)}</span></div>
+                <div class="card-row"><span>Status</span><span>${teacher.complete} complete, ${teacher.missing + teacher.incomplete} missing or incomplete</span></div>
             </article>
         `;
-    }).join("");
-    showScreen("plDetail", true);
+    }).join("") : `<p class="message compact">No teacher load records found for this grade level.</p>`;
+}
+
+function handlePlBack() {
+    if (state.selectedPlGradeGroup && state.selectedPlSubjectCard) {
+        openPlSubject(state.selectedPlSubjectCard);
+        return;
+    }
+    showScreen("pl");
 }
 
 function bindEvents() {
@@ -1466,7 +1706,7 @@ function bindEvents() {
     });
     $("backToAdvisoryBtn").addEventListener("click", () => showScreen("advisory"));
     $("backToMonitoringBtn").addEventListener("click", () => showScreen("monitoring"));
-    $("backToPlBtn").addEventListener("click", () => showScreen("pl"));
+    $("backToPlBtn").addEventListener("click", handlePlBack);
     $("closeStudentSheetBtn").addEventListener("click", () => $("studentSheet").classList.add("hidden"));
     $("closeGradeSheetBtn").addEventListener("click", closeGradeSheet);
     $("saveSingleGradeBtn").addEventListener("click", saveSingleGrade);
