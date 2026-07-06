@@ -246,7 +246,7 @@ input:focus, select:focus, textarea:focus {
     border-top: 1px solid var(--border);
 }
 
-.profile-card, .mini-card, .load-card, .student-card, .pl-card, .simple-card, .data-card {
+.profile-card, .mini-card, .load-card, .student-card, .pl-card, .pl-grade-card, .simple-card, .data-card {
     border: 1px solid var(--border);
     border-radius: 16px;
     background: var(--surface);
@@ -287,6 +287,34 @@ input:focus, select:focus, textarea:focus {
     margin-top: 10px;
 }
 .load-card, .student-card, .pl-card, .simple-card, .data-card { padding: 14px; }
+.pl-grade-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+}
+.pl-grade-main { min-width: 0; }
+.pl-grade-value {
+    flex: 0 0 auto;
+    text-align: right;
+}
+.pl-grade-value span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.pl-grade-value strong {
+    display: block;
+    margin-top: 3px;
+    color: var(--primary);
+    font-size: 22px;
+    line-height: 1;
+}
+
 .card-title {
     margin: 0;
     font-size: 16px;

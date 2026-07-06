@@ -1280,11 +1280,11 @@ const PL_SUBJECT_DEFINITIONS = [
     { key: "general_subjects", label: "General Subjects", rank: 1, match: (text) => text.includes("general subject") || text === "general" || text.includes("general subjects") },
     { key: "filipino", label: "Filipino", rank: 2, match: (text) => /\bfilipino\b/.test(text) },
     { key: "english", label: "English", rank: 3, match: (text) => /\benglish\b/.test(text) },
-    { key: "math", label: "Math", rank: 4, match: (text) => /\bmath\b/.test(text) || /\bmathematics\b/.test(text) },
+    { key: "math", label: "Mathematics", rank: 4, match: (text) => /\bmath\b/.test(text) || /\bmathematics\b/.test(text) },
     { key: "science", label: "Science", rank: 5, match: (text) => /\bscience\b/.test(text) },
-    { key: "ap", label: "AP", rank: 6, match: (text) => /\bap\b/.test(text) || text.includes("araling panlipunan") || text.includes("social studies") },
-    { key: "values", label: "Values", rank: 7, match: (text) => /\bvalues\b/.test(text) || /\besp\b/.test(text) || text.includes("edukasyon sa pagpapakatao") || text.includes("gmrc") },
-    { key: "tle", label: "TLE", rank: 8, match: (text) => /\btle\b/.test(text) || /\bepp\b/.test(text) || text.includes("technology and livelihood") || text.includes("livelihood education") },
+    { key: "ap", label: "Araling Panlipunan", rank: 6, match: (text) => /\bap\b/.test(text) || text.includes("araling panlipunan") || text.includes("social studies") },
+    { key: "values", label: "Values Education", rank: 7, match: (text) => /\bvalues\b/.test(text) || /\besp\b/.test(text) || text.includes("edukasyon sa pagpapakatao") || text.includes("gmrc") },
+    { key: "tle", label: "Technology and Livelihood Education", rank: 8, match: (text) => /\btle\b/.test(text) || /\bepp\b/.test(text) || text.includes("technology and livelihood") || text.includes("livelihood education") },
     { key: "mapeh", label: "MAPEH", rank: 9, match: (text) => /\bmapeh\b/.test(text) || text.includes("music and arts") || text.includes("music arts") || text.includes("physical education") || /\bpe\b/.test(text) || text.includes("health") }
 ];
 
@@ -1596,12 +1596,22 @@ function buildPlGradeGroups(rows = []) {
         });
 }
 
+function plCompletionSubtitle(group) {
+    return `Completion: ${group.complete} of ${group.total} complete`;
+}
+
 function renderPlGradeCards(gradeCards) {
     $("plGradeCards").innerHTML = gradeCards.map((group, index) => {
         return `
-            <article class="mini-card tappable-card" data-pl-grade-index="${index}">
-                <strong>${group.pl === null ? "—" : plFormatNumber(group.pl)}</strong>
-                <span>${escapeHtml(plGradeLabel(group.grade))} | ${group.complete} of ${group.total} complete</span>
+            <article class="pl-grade-card tappable-card" data-pl-grade-index="${index}">
+                <div class="pl-grade-main">
+                    <p class="card-title">${escapeHtml(plGradeLabel(group.grade))}</p>
+                    <p class="card-meta">${escapeHtml(plCompletionSubtitle(group))}</p>
+                </div>
+                <div class="pl-grade-value">
+                    <span>Computed PL</span>
+                    <strong>${group.pl === null ? "—" : plFormatNumber(group.pl)}</strong>
+                </div>
             </article>
         `;
     }).join("");
@@ -1651,9 +1661,15 @@ function openPlGrade(group) {
     $("plDetailTitle").textContent = `${state.selectedPlSubjectCard.subject} ${plGradeLabel(group.grade)}`;
     $("plDetailMeta").textContent = `${activeTermLabel()} | Subject teachers`;
     $("plGradeCards").innerHTML = `
-        <article class="mini-card">
-            <strong>${group.pl === null ? "—" : plFormatNumber(group.pl)}</strong>
-            <span>${group.complete} of ${group.total} subject section(s) complete</span>
+        <article class="pl-grade-card">
+            <div class="pl-grade-main">
+                <p class="card-title">${escapeHtml(plGradeLabel(group.grade))}</p>
+                <p class="card-meta">${escapeHtml(plCompletionSubtitle(group))}</p>
+            </div>
+            <div class="pl-grade-value">
+                <span>Computed PL</span>
+                <strong>${group.pl === null ? "—" : plFormatNumber(group.pl)}</strong>
+            </div>
         </article>
     `;
 
