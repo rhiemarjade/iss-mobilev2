@@ -124,6 +124,116 @@ function sortStudents(rows = []) {
     });
 }
 
+function numericValue(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+function firstNumericValue(row, keys = []) {
+    for (const key of keys) {
+        const value = numericValue(row?.[key]);
+        if (value !== null) return value;
+    }
+    return null;
+}
+
+const LOAD_TOTAL_COUNT_KEYS = [
+    "mobile_total_students",
+    "mobile_learner_count",
+    "enrolled_learner_count",
+    "total_students",
+    "total_learners",
+    "learner_count",
+    "enrollment_count",
+    "total_enrollment_count",
+    "active_class_enrollment_count",
+    "total_class_enrollment_count"
+];
+
+const LOAD_MALE_COUNT_KEYS = [
+    "mobile_male_count",
+    "male_count",
+    "male_students",
+    "male_learners",
+    "male_enrollment_count",
+    "male_total"
+];
+
+const LOAD_FEMALE_COUNT_KEYS = [
+    "mobile_female_count",
+    "female_count",
+    "female_students",
+    "female_learners",
+    "female_enrollment_count",
+    "female_total"
+];
+
+function learnerGenderCounts(rows = []) {
+    return rows.reduce((counts, row) => {
+        const gender = clean(row?.gender).toLowerCase();
+        if (gender.startsWith("m")) counts.male += 1;
+        if (gender.startsWith("f")) counts.female += 1;
+        counts.total += 1;
+        return counts;
+    }, { male: 0, female: 0, total: 0 });
+}
+
+function loadLearnerCounts(load = {}) {
+    let total = firstNumericValue(load, LOAD_TOTAL_COUNT_KEYS);
+    const male = firstNumericValue(load, LOAD_MALE_COUNT_KEYS);
+    const female = firstNumericValue(load, LOAD_FEMALE_COUNT_KEYS);
+
+    if (total === null && (male !== null || female !== null)) {
+        total = (male || 0) + (female || 0);
+    }
+
+    return { total, male, female };
+}
+
+function formatLoadLearnerSummary(load = {}) {
+    const counts = loadLearnerCounts(load);
+    const total = counts.total === null ? "—" : numberText(counts.total);
+    const male = counts.male === null ? "—" : numberText(counts.male);
+    const female = counts.female === null ? "—" : numberText(counts.female);
+    return `${total} learner(s), ${male} male, ${female} female`;
+}
+
+async function hydrateLoadLearnerCounts(loads = []) {
+    const hydratedLoads = await Promise.all(loads.map(async (load) => {
+        const counts = loadLearnerCounts(load);
+        if (counts.total !== null && counts.male !== null && counts.female !== null) {
+            return load;
+        }
+
+        if (!load?.class_id || !load?.subject_id) {
+            return load;
+        }
+
+        try {
+            const { data, error } = await state.client.rpc("get_teacher_grade_encoding_rows", {
+                p_class_id: load.class_id,
+                p_subject_id: load.subject_id
+            });
+
+            if (error) throw error;
+
+            const genderCounts = learnerGenderCounts(data || []);
+            return {
+                ...load,
+                mobile_total_students: genderCounts.total,
+                mobile_learner_count: genderCounts.total,
+                mobile_male_count: genderCounts.male,
+                mobile_female_count: genderCounts.female
+            };
+        } catch (error) {
+            console.warn("Unable to load learner counts for teacher load.", error);
+            return load;
+        }
+    }));
+
+    return hydratedLoads;
+}
+
 function normalizeSearchText(value) {
     return clean(value).replace(/,/g, " ").replace(/\s+/g, " ");
 }
@@ -467,18 +577,19 @@ async function loadDashboard() {
     }
 }
 
-async function fetchLoads(showMessage = true) {
+async function fetchLoads(showMessage = true, includeLearnerCounts = false) {
     if (!canUseLoads()) return [];
     if (showMessage) setMessage("loadsMessage", "Loading...");
     const { data, error } = await state.client.rpc("get_teacher_load_summary_rows");
     if (error) throw error;
-    state.loads = [...(data || [])].sort((a, b) => {
+    const sortedLoads = [...(data || [])].sort((a, b) => {
         const grade = Number(a.grade_level || 0) - Number(b.grade_level || 0);
         if (grade !== 0) return grade;
         const section = clean(a.section_name).localeCompare(clean(b.section_name), undefined, { sensitivity: "base" });
         if (section !== 0) return section;
         return clean(a.subject_name).localeCompare(clean(b.subject_name), undefined, { sensitivity: "base" });
     });
+    state.loads = includeLearnerCounts ? await hydrateLoadLearnerCounts(sortedLoads) : sortedLoads;
     return state.loads;
 }
 
@@ -490,13 +601,13 @@ async function loadLoads() {
     const container = $("loadsList");
     container.innerHTML = "";
     try {
-        await fetchLoads(true);
+        await fetchLoads(true, true);
         setMessage("loadsMessage", `${state.loads.length} load(s).`);
         container.innerHTML = state.loads.map((load, index) => `
             <article class="load-card" data-load-index="${index}">
                 <p class="card-title">Grade ${escapeHtml(blank(load.grade_level))} ${escapeHtml(blank(load.section_name))}</p>
                 <p class="card-meta">${escapeHtml(blank(load.subject_name))}</p>
-                <div class="card-row"><span>${escapeHtml(blank(load.school_year))}</span><span class="badge">Open</span></div>
+                <div class="card-row"><span>${escapeHtml(formatLoadLearnerSummary(load))}</span><span class="badge">Open</span></div>
             </article>
         `).join("");
         container.querySelectorAll("[data-load-index]").forEach((card) => {
