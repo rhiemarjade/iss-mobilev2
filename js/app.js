@@ -1253,19 +1253,53 @@ function gradeDisplay(value) {
     return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/\.?0+$/, "");
 }
 
-function studentGradeTermRows(row, includeTerm4 = false) {
-    const rows = [
-        ["Term 1", row.q1_grade, activeTerm() === 1],
-        ["Term 2", row.q2_grade, activeTerm() === 2],
-        ["Term 3", row.q3_grade, activeTerm() === 3]
+function renderStudentGradesTable(rows, includeTerm4 = false) {
+    const termColumns = [
+        { key: "q1_grade", label: "T1", term: 1 },
+        { key: "q2_grade", label: "T2", term: 2 },
+        { key: "q3_grade", label: "T3", term: 3 }
     ];
-    if (includeTerm4) rows.push(["Term 4", row.q4_grade, false]);
-    return rows.map(([label, value, current]) => `
-        <div class="student-grade-term-row">
-            <span>${escapeHtml(label)}${current ? ' <small class="current-term-tag">Current</small>' : ""}</span>
-            <strong>${escapeHtml(gradeDisplay(value))}</strong>
+    if (includeTerm4) termColumns.push({ key: "q4_grade", label: "T4", term: 4 });
+
+    const headerTerms = termColumns.map((column) => {
+        const currentClass = activeTerm() === column.term ? " current-period-col" : "";
+        return `<th class="grade-number-col${currentClass}" scope="col">${escapeHtml(column.label)}</th>`;
+    }).join("");
+
+    const bodyRows = rows.map((row) => {
+        const subject = blank(row.subject_name || row.subject_code, "Subject");
+        const termCells = termColumns.map((column) => {
+            const currentClass = activeTerm() === column.term ? " current-period-col" : "";
+            return `<td class="grade-number-cell${currentClass}">${escapeHtml(gradeDisplay(row[column.key]))}</td>`;
+        }).join("");
+        return `
+            <tr>
+                <th class="student-grade-subject-cell" scope="row">
+                    <span class="student-grade-subject-text">${escapeHtml(subject)}</span>
+                </th>
+                ${termCells}
+                <td class="grade-number-cell final-grade-cell">${escapeHtml(gradeDisplay(row.final_average))}</td>
+                <td class="student-grade-remarks-cell">${escapeHtml(blank(row.remarks))}</td>
+            </tr>
+        `;
+    }).join("");
+
+    return `
+        <p class="student-grades-scroll-hint">Swipe sideways to see all grade columns.</p>
+        <div class="student-grades-table-wrap" role="region" aria-label="Learner grade table" tabindex="0">
+            <table class="student-grades-table${includeTerm4 ? " has-term-4" : ""}">
+                <thead>
+                    <tr>
+                        <th class="student-grade-subject-cell" scope="col">Subject</th>
+                        ${headerTerms}
+                        <th class="grade-number-col" scope="col">Final</th>
+                        <th class="student-grade-remarks-head" scope="col">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
         </div>
-    `).join("");
+    `;
 }
 
 async function openCurrentStudentGrades() {
@@ -1303,17 +1337,7 @@ async function openCurrentStudentGrades() {
     }
 
     const includeTerm4 = rows.some((row) => numericValue(row.q4_grade) !== null);
-    $("studentGradesBody").innerHTML = rows.map((row) => `
-        <article class="student-grade-card">
-            <p class="card-title">${escapeHtml(blank(row.subject_name || row.subject_code, "Subject"))}</p>
-            ${studentGradeTermRows(row, includeTerm4)}
-            <div class="student-grade-term-row final">
-                <span>Final Average</span>
-                <strong>${escapeHtml(gradeDisplay(row.final_average))}</strong>
-            </div>
-            ${clean(row.remarks) ? `<p class="student-grade-remarks">${escapeHtml(row.remarks)}</p>` : ""}
-        </article>
-    `).join("");
+    $("studentGradesBody").innerHTML = renderStudentGradesTable(rows, includeTerm4);
     setMessage("studentGradesMessage", `${rows.length} subject grade record(s). Read only.`);
 }
 

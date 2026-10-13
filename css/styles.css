@@ -537,45 +537,158 @@ input:focus, select:focus, textarea:focus {
 }
 
 
-/* 2026.10.13.2 - Registrar/System Admin current learner grade viewer */
-.student-grade-card {
-    margin: 10px 0;
-    padding: 12px;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    background: #ffffff;
+/* 2026.10.13.3 - Responsive Registrar/System Admin learner grade table */
+#studentGradesSheet .sheet-panel {
+    max-height: 94vh;
+    padding-left: 12px;
+    padding-right: 12px;
 }
-.student-grade-card .card-title {
-    margin: 0 0 8px;
+#studentGradesSheet .sheet-header,
+#studentGradesSheet .sheet-meta,
+#studentGradesSheet #studentGradesMessage {
+    margin-left: 4px;
+    margin-right: 4px;
 }
-.student-grade-term-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    align-items: center;
-    padding: 7px 0;
-    border-bottom: 1px solid #edf1f7;
-    font-size: 14px;
-}
-.student-grade-term-row.final {
-    border-bottom: 0;
-    padding-top: 9px;
-    font-weight: 800;
-}
-.current-term-tag {
-    display: inline-block;
-    margin-left: 5px;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: #eef2ff;
-    color: #4338ca;
-    font-size: 9px;
-    font-weight: 900;
-    text-transform: uppercase;
-    vertical-align: 1px;
-}
-.student-grade-remarks {
-    margin: 8px 0 0;
+.student-grades-scroll-hint {
+    margin: 2px 4px 7px;
     color: var(--muted);
+    font-size: 11px;
+}
+.student-grades-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    max-height: 64vh;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+}
+.student-grades-table {
+    width: 100%;
+    min-width: 472px;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
     font-size: 12px;
 }
+.student-grades-table.has-term-4 {
+    min-width: 516px;
+}
+.student-grades-table th,
+.student-grades-table td {
+    padding: 9px 6px;
+    border-right: 1px solid #edf1f7;
+    border-bottom: 1px solid #edf1f7;
+    vertical-align: middle;
+}
+.student-grades-table tr > *:last-child {
+    border-right: 0;
+}
+.student-grades-table tbody tr:last-child > * {
+    border-bottom: 0;
+}
+.student-grades-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 900;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+.student-grades-table .student-grade-subject-cell {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    width: 152px;
+    min-width: 152px;
+    max-width: 152px;
+    background: #ffffff;
+    text-align: left;
+    box-shadow: 2px 0 0 rgba(226, 232, 240, 0.9);
+}
+.student-grades-table thead .student-grade-subject-cell {
+    z-index: 5;
+    background: #f8fafc;
+}
+.student-grade-subject-text {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: none;
+}
+.student-grades-table .grade-number-col,
+.student-grades-table .grade-number-cell {
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.student-grades-table .grade-number-cell {
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 800;
+}
+.student-grades-table .final-grade-cell {
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+    font-weight: 900;
+}
+.student-grades-table .student-grade-remarks-head,
+.student-grades-table .student-grade-remarks-cell {
+    width: 92px;
+    min-width: 92px;
+    max-width: 92px;
+}
+.student-grades-table .student-grade-remarks-cell {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.student-grades-table .current-period-col {
+    background: #eef2ff;
+}
+.student-grades-table thead .current-period-col {
+    color: var(--primary);
+}
+@media (max-width: 390px) {
+    #studentGradesSheet .sheet-panel {
+        padding-left: 9px;
+        padding-right: 9px;
+    }
+    .student-grades-table {
+        min-width: 452px;
+    }
+    .student-grades-table.has-term-4 {
+        min-width: 496px;
+    }
+    .student-grades-table .student-grade-subject-cell {
+        width: 142px;
+        min-width: 142px;
+        max-width: 142px;
+    }
+    .student-grade-subject-text {
+        font-size: 10.5px;
+    }
+    .student-grades-table th,
+    .student-grades-table td {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+}
+

@@ -1,7 +1,7 @@
 (() => {
     "use strict";
 
-    const APP_VERSION = "2026.10.13.2";
+    const APP_VERSION = "2026.10.13.3";
     const VERSION_URL = "./version.json";
     const CHECK_INTERVAL_MS = 30 * 60 * 1000;
     const DISMISS_KEY = "issMobileUpdateDismissedVersion";
