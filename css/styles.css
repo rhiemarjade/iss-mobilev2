@@ -535,3 +535,47 @@ input:focus, select:focus, textarea:focus {
 .tappable-card:active {
     transform: translateY(1px);
 }
+
+
+/* 2026.10.13.2 - Registrar/System Admin current learner grade viewer */
+.student-grade-card {
+    margin: 10px 0;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #ffffff;
+}
+.student-grade-card .card-title {
+    margin: 0 0 8px;
+}
+.student-grade-term-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid #edf1f7;
+    font-size: 14px;
+}
+.student-grade-term-row.final {
+    border-bottom: 0;
+    padding-top: 9px;
+    font-weight: 800;
+}
+.current-term-tag {
+    display: inline-block;
+    margin-left: 5px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 9px;
+    font-weight: 900;
+    text-transform: uppercase;
+    vertical-align: 1px;
+}
+.student-grade-remarks {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}

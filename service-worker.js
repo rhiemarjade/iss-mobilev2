@@ -1,4 +1,4 @@
-const BUILD_VERSION = "2026.10.13.1";
+const BUILD_VERSION = "2026.10.13.2";
 const CACHE_NAME = `iss-mobile-pwa-${BUILD_VERSION}`;
 const CACHE_PREFIX = "iss-mobile-pwa";
 const APP_SHELL = [

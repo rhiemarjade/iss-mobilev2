@@ -63,7 +63,9 @@ const state = {
     selectedPlSubjectCard: null,
     selectedPlGradeCards: [],
     selectedPlGradeGroup: null,
-    canViewPl: false
+    canViewPl: false,
+    selectedStudent: null,
+    currentStudentGrades: []
 };
 
 function escapeHtml(value) {
@@ -358,6 +360,10 @@ function canUseGradeMonitoring() {
 
 function canUseStudentSearch() {
     return isManagement();
+}
+
+function canViewCurrentStudentGrades() {
+    return Boolean(state.context?.is_system_admin || state.context?.is_registrar);
 }
 
 function canUseSummary() {
@@ -1206,6 +1212,7 @@ async function searchStudents() {
 }
 
 function openStudentSheet(row) {
+    state.selectedStudent = row || null;
     $("studentSheetName").textContent = studentName(row) || "Student";
     $("studentSheetBody").innerHTML = `
         <div class="info-row"><span>LRN</span><strong>${escapeHtml(blank(row.lrn))}</strong></div>
@@ -1218,7 +1225,96 @@ function openStudentSheet(row) {
         <div class="info-row"><span>Address</span><strong>${escapeHtml([row.address_sitio, row.address_barangay, row.address_municipality].filter(Boolean).join(", ") || "—")}</strong></div>
         <div class="info-row"><span>4Ps</span><strong>${row.pppp_beneficiary ? "Yes" : "No"}</strong></div>
     `;
+
+    const isCurrentEnrollment =
+        clean(row?.enrollment_status).toLowerCase() === "enrolled"
+        && clean(row?.enrollment_id)
+        && (
+            !currentSchoolYearId()
+            || clean(row?.school_year_id) === clean(currentSchoolYearId())
+        );
+
+    $("viewStudentGradesBtn").classList.toggle(
+        "hidden",
+        !(canViewCurrentStudentGrades() && isCurrentEnrollment)
+    );
     $("studentSheet").classList.remove("hidden");
+}
+
+function closeStudentGradesSheet() {
+    $("studentGradesSheet").classList.add("hidden");
+    state.currentStudentGrades = [];
+    setMessage("studentGradesMessage", "");
+}
+
+function gradeDisplay(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "—";
+    return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function studentGradeTermRows(row, includeTerm4 = false) {
+    const rows = [
+        ["Term 1", row.q1_grade, activeTerm() === 1],
+        ["Term 2", row.q2_grade, activeTerm() === 2],
+        ["Term 3", row.q3_grade, activeTerm() === 3]
+    ];
+    if (includeTerm4) rows.push(["Term 4", row.q4_grade, false]);
+    return rows.map(([label, value, current]) => `
+        <div class="student-grade-term-row">
+            <span>${escapeHtml(label)}${current ? ' <small class="current-term-tag">Current</small>' : ""}</span>
+            <strong>${escapeHtml(gradeDisplay(value))}</strong>
+        </div>
+    `).join("");
+}
+
+async function openCurrentStudentGrades() {
+    const student = state.selectedStudent;
+    if (!student?.enrollment_id) return;
+
+    if (!canViewCurrentStudentGrades()) {
+        setMessage("studentSearchMessage", "Only System Admin and Registrar accounts can view current learner grades.");
+        return;
+    }
+
+    $("studentSheet").classList.add("hidden");
+    $("studentGradesSheetName").textContent = studentName(student) || "Learner Grades";
+    $("studentGradesMeta").textContent =
+        `Grade ${blank(student.grade_level)} ${blank(student.section_name || student.section, "")} | ${blank(student.school_year, currentSchoolYearLabel())}`;
+    $("studentGradesBody").innerHTML = "";
+    setMessage("studentGradesMessage", "Loading grades...");
+    $("studentGradesSheet").classList.remove("hidden");
+
+    const { data, error } = await state.client.rpc("get_mobile_current_enrollment_grades_v2", {
+        p_enrollment_id: student.enrollment_id
+    });
+
+    if (error) {
+        state.currentStudentGrades = [];
+        setMessage("studentGradesMessage", error.message);
+        return;
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    state.currentStudentGrades = rows;
+    if (!rows.length) {
+        setMessage("studentGradesMessage", "No active grade records found for this currently enrolled learner.");
+        return;
+    }
+
+    const includeTerm4 = rows.some((row) => numericValue(row.q4_grade) !== null);
+    $("studentGradesBody").innerHTML = rows.map((row) => `
+        <article class="student-grade-card">
+            <p class="card-title">${escapeHtml(blank(row.subject_name || row.subject_code, "Subject"))}</p>
+            ${studentGradeTermRows(row, includeTerm4)}
+            <div class="student-grade-term-row final">
+                <span>Final Average</span>
+                <strong>${escapeHtml(gradeDisplay(row.final_average))}</strong>
+            </div>
+            ${clean(row.remarks) ? `<p class="student-grade-remarks">${escapeHtml(row.remarks)}</p>` : ""}
+        </article>
+    `).join("");
+    setMessage("studentGradesMessage", `${rows.length} subject grade record(s). Read only.`);
 }
 
 async function loadAdvisory() {
@@ -1885,6 +1981,8 @@ function bindEvents() {
     $("backToMonitoringBtn").addEventListener("click", () => showScreen("monitoring"));
     $("backToPlBtn").addEventListener("click", handlePlBack);
     $("closeStudentSheetBtn").addEventListener("click", () => $("studentSheet").classList.add("hidden"));
+    $("viewStudentGradesBtn").addEventListener("click", openCurrentStudentGrades);
+    $("closeStudentGradesSheetBtn").addEventListener("click", closeStudentGradesSheet);
     $("closeGradeSheetBtn").addEventListener("click", closeGradeSheet);
     $("saveSingleGradeBtn").addEventListener("click", saveSingleGrade);
     $("openGradeCorrectionRequestBtn").addEventListener("click", openCorrectionRequestSheet);

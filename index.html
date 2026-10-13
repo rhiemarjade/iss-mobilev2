@@ -9,10 +9,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="ISS Mobile">
     <title>ISS Mobile</title>
-    <link rel="manifest" href="manifest.webmanifest?v=2026.10.13.1">
-    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=2026.10.13.1">
-    <link rel="stylesheet" href="css/styles.css?v=2026.10.13.1">
-    <link rel="stylesheet" href="css/update-monitor.css?v=2026.10.13.1">
+    <link rel="manifest" href="manifest.webmanifest?v=2026.10.13.2">
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=2026.10.13.2">
+    <link rel="stylesheet" href="css/styles.css?v=2026.10.13.2">
+    <link rel="stylesheet" href="css/update-monitor.css?v=2026.10.13.2">
 </head>
 <body>
     <div id="phoneGuard" class="phone-guard hidden">
@@ -175,6 +175,19 @@
                 <button id="closeStudentSheetBtn" class="icon-btn">×</button>
             </div>
             <div id="studentSheetBody" class="sheet-body"></div>
+            <button id="viewStudentGradesBtn" class="primary-btn full-btn hidden" type="button">View Grades</button>
+        </div>
+    </div>
+
+    <div id="studentGradesSheet" class="sheet hidden">
+        <div class="sheet-panel">
+            <div class="sheet-header">
+                <h2 id="studentGradesSheetName">Learner Grades</h2>
+                <button id="closeStudentGradesSheetBtn" class="icon-btn">×</button>
+            </div>
+            <div id="studentGradesMeta" class="sheet-meta"></div>
+            <div id="studentGradesBody" class="sheet-body"></div>
+            <p id="studentGradesMessage" class="message compact"></p>
         </div>
     </div>
 
@@ -271,10 +284,10 @@
         </div>
     </div>
 
-    <script>window.ISS_MOBILE_ASSET_VERSION = "2026.10.13.1";</script>
-    <script src="config.js?v=2026.10.13.1"></script>
+    <script>window.ISS_MOBILE_ASSET_VERSION = "2026.10.13.2";</script>
+    <script src="config.js?v=2026.10.13.2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/app.js?v=2026.10.13.1"></script>
-    <script src="js/update-monitor.js?v=2026.10.13.1"></script>
+    <script src="js/app.js?v=2026.10.13.2"></script>
+    <script src="js/update-monitor.js?v=2026.10.13.2"></script>
 </body>
 </html>
