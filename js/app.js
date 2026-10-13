@@ -210,10 +210,12 @@ async function hydrateLoadLearnerCounts(loads = []) {
         }
 
         try {
-            const { data, error } = await state.client.rpc("get_teacher_grade_encoding_rows", {
-                p_class_id: load.class_id,
-                p_subject_id: load.subject_id
-            });
+            const { data, error } = isTleRotationLoad(load)
+                ? await state.client.rpc("get_tle_rotation_load_roster_v322", { p_load_id: load.load_id })
+                : await state.client.rpc("get_teacher_grade_encoding_rows", {
+                    p_class_id: load.class_id,
+                    p_subject_id: load.subject_id
+                });
 
             if (error) throw error;
 
@@ -580,8 +582,10 @@ async function loadDashboard() {
 async function fetchLoads(showMessage = true, includeLearnerCounts = false) {
     if (!canUseLoads()) return [];
     if (showMessage) setMessage("loadsMessage", "Loading...");
-    const { data, error } = await state.client.rpc("get_teacher_load_summary_rows");
-    if (error) throw error;
+    const { data, error } = await state.client.rpc("get_teacher_load_summary_rows_v323");
+    if (error) {
+        throw new Error(`Teacher loads could not be loaded: ${error.message}. The current ISS database migration for rotational TLE grade encoding is required.`);
+    }
     const sortedLoads = [...(data || [])].sort((a, b) => {
         const grade = Number(a.grade_level || 0) - Number(b.grade_level || 0);
         if (grade !== 0) return grade;
@@ -624,6 +628,13 @@ function periodLabel(period) {
 
 function selectedLoadId() {
     return state.selectedLoad?.load_id || state.selectedLoad?.teacher_load_id || null;
+}
+
+function isTleRotationLoad(load = null) {
+    const target = load || state.selectedLoad || {};
+    return target?.is_tle_rotation_load === true
+        || target?.is_tle_rotation_load === "true"
+        || Boolean(target?.tle_rotation_term_id);
 }
 
 function proficiencyInputs() {
@@ -864,10 +875,13 @@ async function openLoad(load) {
     $("gradeRows").innerHTML = "";
     setMessage("gradeMessage", "Loading...");
     showScreen("loadDetail", true);
-    const { data, error } = await state.client.rpc("get_teacher_grade_encoding_rows", {
-        p_class_id: load.class_id,
-        p_subject_id: load.subject_id
-    });
+    const rotationLoad = isTleRotationLoad(load);
+    const { data, error } = rotationLoad
+        ? await state.client.rpc("get_tle_rotation_grade_encoding_rows_v323", { p_load_id: load.load_id })
+        : await state.client.rpc("get_teacher_grade_encoding_rows", {
+            p_class_id: load.class_id,
+            p_subject_id: load.subject_id
+        });
     if (error) {
         setMessage("gradeMessage", error.message);
         return;
@@ -951,16 +965,52 @@ async function saveSingleGrade() {
     }
     $("saveSingleGradeBtn").disabled = true;
     setMessage("gradeSheetMessage", "Saving...");
-    const { data, error } = await state.client.rpc("save_teacher_grade_batch", { p_items: items });
+
+    const rotationLoad = isTleRotationLoad(state.selectedLoad);
+    const { data, error } = rotationLoad
+        ? await state.client.rpc("save_tle_rotation_grade_batch_v323", {
+            p_load_id: selectedLoadId(),
+            p_items: items
+        })
+        : await state.client.rpc("save_teacher_grade_batch", { p_items: items });
+
     $("saveSingleGradeBtn").disabled = false;
     if (error) {
         setMessage("gradeSheetMessage", error.message);
         return;
     }
-    const saved = (data || []).filter((item) => item.saved).length;
-    setMessage("gradeSheetMessage", `${saved || items.length} saved.`);
+
+    const results = data || [];
+    const savedRows = results.filter((item) => item?.saved === true);
+    const failedRows = results.filter((item) => item?.saved !== true);
+
+    if (failedRows.length > 0) {
+        const firstError = clean(failedRows[0]?.message) || "The grade was rejected by the server.";
+        const resultMessage = `${savedRows.length} saved, ${failedRows.length} failed. ${firstError}`;
+
+        // Refresh from Supabase so any successful rows use the actual persisted values,
+        // then reopen this learner if the row is still available.
+        const gradeId = row.grade_id;
+        await openLoad(state.selectedLoad);
+        const refreshedRow = state.gradeRows.find((item) => item.grade_id === gradeId);
+        if (refreshedRow) {
+            openGradeSheet(refreshedRow);
+            setMessage("gradeSheetMessage", resultMessage);
+        } else {
+            closeGradeSheet();
+            setMessage("gradeMessage", resultMessage);
+        }
+        return;
+    }
+
+    if (savedRows.length !== items.length) {
+        setMessage("gradeSheetMessage", "The server did not confirm every grade change. Nothing was reported as failed, so the grade sheet will stay open for verification.");
+        return;
+    }
+
     closeGradeSheet();
     await openLoad(state.selectedLoad);
+    setMessage("gradeMessage", `${savedRows.length} grade change(s) saved successfully.`);
 }
 
 function openCorrectionRequestSheet(preferredTerm = null) {
