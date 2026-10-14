@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.13.3",
-  "releasedAt": "2026-10-13T00:00:00+08:00",
-  "message": "Responsive table layout for the System Admin and Registrar current learner grade viewer."
+  "version": "2026.10.14.1",
+  "releasedAt": "2026-10-14T00:00:00+08:00",
+  "message": "Mobile learner grade viewer: MAPEH components, eight-area Term Average, and blank-grade display safeguards."
 }

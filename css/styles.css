@@ -692,3 +692,28 @@ input:focus, select:focus, textarea:focus {
     }
 }
 
+
+/* 2026.10.14.1 - Main learning areas, MAPEH components, and Term Average */
+.student-grades-table .student-grade-component-row .student-grade-subject-cell {
+    background: #f9fbff;
+}
+.student-grades-table .student-grade-component-row .student-grade-subject-text {
+    padding-left: 12px;
+    font-weight: 500;
+    color: #475569;
+}
+.student-grades-table .student-grade-component-row .grade-number-cell {
+    font-weight: 500;
+    color: #475569;
+}
+.student-grades-table .student-grade-average-row > * {
+    background: #f1f5fa;
+    border-top: 2px solid #cad5e6;
+    font-weight: 900;
+}
+.student-grades-table .student-grade-average-row .student-grade-subject-cell {
+    background: #f1f5fa;
+}
+.student-grades-table .student-grade-average-row .current-period-col {
+    background: #e4eaff;
+}

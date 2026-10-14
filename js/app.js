@@ -1247,10 +1247,93 @@ function closeStudentGradesSheet() {
     setMessage("studentGradesMessage", "");
 }
 
-function gradeDisplay(value) {
+// Student grade viewer helpers are presentation-only. The secured grade RPC and
+// the stored grades are not modified by grouping or by the summary row.
+function studentGradeNumber(value) {
+    if (value === null || value === undefined || clean(value) === "") return null;
     const number = Number(value);
-    if (!Number.isFinite(number)) return "—";
+    return Number.isFinite(number) ? number : null;
+}
+
+function gradeDisplay(value) {
+    const number = studentGradeNumber(value);
+    if (number === null) return "";
     return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function studentGradeArea(row) {
+    // Read the actual learning-area name first. Component codes can sometimes
+    // reference the parent MAPEH area, so components must be checked first.
+    const label = clean(row?.subject_name || row?.subject_code).toLowerCase()
+        .replace(/&/g, " and ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ").trim();
+    const code = clean(row?.subject_code).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+    if (/^(music (and )?arts|ma)(?:\s|$)/.test(label)) return "music_arts";
+    if (/^(physical education (and )?health|pe (and )?health|peh)(?:\s|$)/.test(label)) return "pe_health";
+    if (/^(filipino|fil)(?:\s|$)/.test(label) || code === "fil") return "filipino";
+    if (/^(english|eng)(?:\s|$)/.test(label) || code === "eng") return "english";
+    if (/^(mathematics|math)(?:\s|$)/.test(label) || code === "math") return "mathematics";
+    if (/^(science|sci)(?:\s|$)/.test(label) || code === "sci") return "science";
+    if (/^(araling panlipunan|ap)(?:\s|$)/.test(label) || code === "ap") return "araling";
+    if (/^(values education|values ed|val ed|values|edukasyon sa pagpapakatao|esp)(?:\s|$)/.test(label)) return "values";
+    if (/^(technology and livelihood education|tle)(?:\s|$)/.test(label) || code === "tle") return "tle";
+    if (/^(mapeh|music arts physical education and health)(?:\s|$)/.test(label) || code === "mapeh") return "mapeh";
+    return null;
+}
+
+const STUDENT_GRADE_MAIN_AREAS = [
+    "filipino", "english", "mathematics", "science",
+    "araling", "values", "tle", "mapeh"
+];
+
+function organizeStudentGradeRows(rows) {
+    const tagged = rows.map((row, index) => ({ row, area: studentGradeArea(row), index }));
+    const parentMapehExists = tagged.some((item) => item.area === "mapeh");
+    const components = tagged.filter((item) => item.area === "music_arts" || item.area === "pe_health");
+
+    // The RPC may return the component subjects without a consolidated MAPEH
+    // record. In that case show a display-only MAPEH summary. Never average a
+    // partial or ambiguous component set; do not synthesize a final grade.
+    if (!parentMapehExists && components.length) {
+        const ma = components.filter((item) => item.area === "music_arts");
+        const peh = components.filter((item) => item.area === "pe_health");
+        const gradeSuffixes = components.map((item) => clean(item.row.subject_name).match(/\b(\d{1,2})\s*$/)?.[1]);
+        const suffix = gradeSuffixes.length && gradeSuffixes.every((grade) => grade && grade === gradeSuffixes[0])
+            ? ` ${gradeSuffixes[0]}` : "";
+        const derived = { subject_name: `MAPEH${suffix}`, final_average: null, remarks: null };
+        for (const key of ["q1_grade", "q2_grade", "q3_grade", "q4_grade"]) {
+            const a = ma.length === 1 ? studentGradeNumber(ma[0].row[key]) : null;
+            const b = peh.length === 1 ? studentGradeNumber(peh[0].row[key]) : null;
+            derived[key] = a !== null && b !== null ? Math.round((a + b) / 2) : null;
+        }
+        tagged.push({ row: derived, area: "mapeh", index: rows.length });
+    }
+
+    const ordered = [...tagged].sort((a, b) => {
+        const rank = (area) => {
+            const main = STUDENT_GRADE_MAIN_AREAS.indexOf(area);
+            if (main !== -1) return main;
+            if (area === "music_arts") return 8;
+            if (area === "pe_health") return 9;
+            return 10;
+        };
+        return rank(a.area) - rank(b.area) || a.index - b.index;
+    });
+    return ordered;
+}
+
+function studentTermAverage(tagged, key) {
+    // As in the desktop summary, all eight main learning areas are required.
+    // Music and Arts and PE and Health are components, not additional areas.
+    const values = STUDENT_GRADE_MAIN_AREAS.map((area) => {
+        const matches = tagged.filter((item) => item.area === area);
+        return matches.length === 1 ? studentGradeNumber(matches[0].row[key]) : null;
+    });
+    return values.every((value) => value !== null)
+        ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+        : null;
 }
 
 function renderStudentGradesTable(rows, includeTerm4 = false) {
@@ -1266,23 +1349,39 @@ function renderStudentGradesTable(rows, includeTerm4 = false) {
         return `<th class="grade-number-col${currentClass}" scope="col">${escapeHtml(column.label)}</th>`;
     }).join("");
 
-    const bodyRows = rows.map((row) => {
+    const tagged = organizeStudentGradeRows(rows);
+    const bodyRows = tagged.map(({ row, area }) => {
         const subject = blank(row.subject_name || row.subject_code, "Subject");
+        const component = area === "music_arts" || area === "pe_health";
+        const rowClass = component ? "student-grade-component-row" : "student-grade-main-row";
         const termCells = termColumns.map((column) => {
             const currentClass = activeTerm() === column.term ? " current-period-col" : "";
             return `<td class="grade-number-cell${currentClass}">${escapeHtml(gradeDisplay(row[column.key]))}</td>`;
         }).join("");
         return `
-            <tr>
+            <tr class="${rowClass}">
                 <th class="student-grade-subject-cell" scope="row">
                     <span class="student-grade-subject-text">${escapeHtml(subject)}</span>
                 </th>
                 ${termCells}
                 <td class="grade-number-cell final-grade-cell">${escapeHtml(gradeDisplay(row.final_average))}</td>
-                <td class="student-grade-remarks-cell">${escapeHtml(blank(row.remarks))}</td>
+                <td class="student-grade-remarks-cell">${escapeHtml(clean(row.remarks))}</td>
             </tr>
         `;
     }).join("");
+
+    const averageCells = termColumns.map((column) => {
+        const currentClass = activeTerm() === column.term ? " current-period-col" : "";
+        return `<td class="grade-number-cell${currentClass}">${escapeHtml(gradeDisplay(studentTermAverage(tagged, column.key)))}</td>`;
+    }).join("");
+    const averageRow = `
+        <tr class="student-grade-average-row">
+            <th class="student-grade-subject-cell" scope="row"><span class="student-grade-subject-text">Term Average</span></th>
+            ${averageCells}
+            <td class="grade-number-cell final-grade-cell"></td>
+            <td class="student-grade-remarks-cell"></td>
+        </tr>
+    `;
 
     return `
         <p class="student-grades-scroll-hint">Swipe sideways to see all grade columns.</p>
@@ -1296,7 +1395,7 @@ function renderStudentGradesTable(rows, includeTerm4 = false) {
                         <th class="student-grade-remarks-head" scope="col">Remarks</th>
                     </tr>
                 </thead>
-                <tbody>${bodyRows}</tbody>
+                <tbody>${bodyRows}${averageRow}</tbody>
             </table>
         </div>
     `;
@@ -1336,7 +1435,7 @@ async function openCurrentStudentGrades() {
         return;
     }
 
-    const includeTerm4 = rows.some((row) => numericValue(row.q4_grade) !== null);
+    const includeTerm4 = rows.some((row) => studentGradeNumber(row.q4_grade) !== null);
     $("studentGradesBody").innerHTML = renderStudentGradesTable(rows, includeTerm4);
     setMessage("studentGradesMessage", `${rows.length} subject grade record(s). Read only.`);
 }
